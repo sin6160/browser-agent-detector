@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Iterable, List
+from typing import Any, Iterable, List
 
 import lightgbm as lgb
 
@@ -30,29 +30,47 @@ DEFAULT_FEATURE_NAMES: List[str] = [
     "click_avg_click_interval",
     "click_click_precision",
     "click_double_click_rate",
-    "keystroke_typing_speed",
-    "keystroke_key_hold_time",
+    "keystroke_typing_speed_cpm",
+    "keystroke_key_hold_time_ms",
     "keystroke_key_interval_variance",
     "scroll_speed",
     "scroll_acceleration",
     "pause_frequency",
-    "page_session_duration",
-    "page_page_dwell_time",
-    "page_first_interaction_delay",
-    "page_form_fill_speed",
+    "page_session_duration_ms",
+    "page_page_dwell_time_ms",
+    "page_first_interaction_delay_ms",
+    "page_form_fill_speed_cpm",
+    "page_paste_ratio",
 ]
+
+
+class LightGBMModelDisabledError(RuntimeError):
+    """環境変数でブラウザモデルが無効化されている場合の例外。"""
+
+
+class _DisabledBooster:
+    """モデル無効化時に使用するダミーBooster。"""
+
+    def predict(self, data: Any) -> List[float]:
+        raise LightGBMModelDisabledError(
+            "LightGBM browser model is disabled via AI_DETECTOR_DISABLE_BROWSER_MODEL"
+        )
 
 
 @dataclass(frozen=True)
 class LightGBMModel:
     """LightGBM Booster と特徴量名のセット。"""
 
-    booster: lgb.Booster
+    booster: Any
     feature_names: Iterable[str]
 
 
 def load_lightgbm_model(model_path: Path | None = None) -> LightGBMModel:
     """LightGBM モデルファイルを読み込み、Booster を返す。"""
+
+    if config.BROWSER_MODEL_DISABLED:
+        logger.warning("LightGBMブラウザモデルを無効化します (AI_DETECTOR_DISABLE_BROWSER_MODEL=1)")
+        return LightGBMModel(booster=_DisabledBooster(), feature_names=DEFAULT_FEATURE_NAMES)
 
     resolved_path = model_path or config.LIGHTGBM_MODEL_PATH
     if not resolved_path.exists():

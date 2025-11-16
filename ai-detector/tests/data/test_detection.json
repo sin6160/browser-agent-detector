@@ -1,5 +1,6 @@
 {
-  "sessionId": "test-session-123",
+  "session_id": "test-session-123",
+  "request_id": "test-request-abc",
   "behavioral_data": {
     "mouse_movements": [
       {"timestamp": 1700000000000, "x": 400, "y": 300, "velocity": 1.2},
@@ -12,8 +13,8 @@
       "double_click_rate": 0.05
     },
     "keystroke_dynamics": {
-      "typing_speed": 180,
-      "key_hold_time": 120,
+      "typing_speed_cpm": 180,
+      "key_hold_time_ms": 120,
       "key_interval_variance": 50
     },
     "scroll_behavior": {
@@ -22,18 +23,19 @@
       "pause_frequency": 0.1
     },
     "page_interaction": {
-      "session_duration": 45,
-      "page_dwell_time": 45,
-      "first_interaction_delay": 500,
+      "session_duration_ms": 45000,
+      "page_dwell_time_ms": 45000,
+      "first_interaction_delay_ms": 500,
       "navigation_pattern": "linear",
-      "form_fill_speed": 3.0
+      "form_fill_speed_cpm": 180,
+      "paste_ratio": 0.1
     }
   },
-  "recent_actions": [
+  "behavior_sequence": [
     {"action": "mouse_move", "timestamp": 1700000000000, "x": 400, "y": 300, "velocity": 1.2},
     {"action": "mouse_move", "timestamp": 1700000000500, "x": 420, "y": 320, "velocity": 1.5},
     {"action": "click", "timestamp": 1700000000900, "x": 430, "y": 330},
-    {"action": "scroll", "timestamp": 1700000001200, "deltaY": 120},
+    {"action": "scroll", "timestamp": 1700000001200, "delta_y": 120},
     {"action": "keystroke", "timestamp": 1700000001500, "key": "a"},
     {"action": "idle", "timestamp": 1700000002000}
   ],
@@ -56,7 +58,12 @@
       "is_pure_chromium": false
     },
     "canvas_fingerprint": "canvas-hash",
-    "webgl_fingerprint": "webgl-hash"
+    "webgl_fingerprint": "webgl-hash",
+    "http_signature_state": "unknown",
+    "anti_fingerprint_signals": ["no_anomaly"],
+    "network_fingerprint_source": "client",
+    "tls_ja4": null,
+    "http_signature": null
   },
   "persona_features": {
     "age": 35,

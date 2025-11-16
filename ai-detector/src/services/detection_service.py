@@ -52,13 +52,14 @@ class DetectionService:
         confidence = abs(score - 0.5) * 2
 
         session_id = request.session_id or str(uuid.uuid4())
+        request_id = request.request_id or str(uuid.uuid4())
 
         return DetectionResult(
             session_id=session_id,
             score=score,
             is_bot=is_bot,
             confidence=confidence,
-            request_id=str(uuid.uuid4()),
+            request_id=request_id,
             features_extracted=features,
             raw_prediction=prediction,
         )

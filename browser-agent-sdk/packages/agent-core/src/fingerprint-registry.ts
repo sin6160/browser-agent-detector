@@ -1,4 +1,4 @@
-import { DeviceFingerprint } from './types';
+import { BrowserInfo, DeviceFingerprint } from './types';
 
 export class FingerprintRegistry {
   private cache: Promise<DeviceFingerprint> | null = null;
@@ -28,6 +28,12 @@ export class FingerprintRegistry {
     const { canvasFingerprint, canvasSignals } = this.getCanvasFingerprint();
     const { webglFingerprint, webglSignals } = this.getWebGLFingerprint();
 
+    const antiFingerprintSignals = [
+      ...canvasSignals,
+      ...webglSignals,
+      ...this.collectAntiFingerprintSignals(userAgent, browserInfo),
+    ];
+
     return {
       screen_resolution: screenResolution,
       timezone,
@@ -41,7 +47,8 @@ export class FingerprintRegistry {
       canvas_fingerprint: canvasFingerprint,
       webgl_fingerprint: webglFingerprint,
       http_signature_state: 'unknown',
-      anti_fingerprint_signals: [...canvasSignals, ...webglSignals],
+      anti_fingerprint_signals: antiFingerprintSignals,
+      network_fingerprint_source: 'client',
     };
   }
 
@@ -68,6 +75,7 @@ export class FingerprintRegistry {
       webgl_fingerprint: 'unavailable',
       http_signature_state: 'unknown',
       anti_fingerprint_signals: ['no-window'],
+      network_fingerprint_source: 'server',
     };
   }
 
@@ -219,10 +227,78 @@ export class FingerprintRegistry {
 
   private hashString(value: string): string {
     let hash = 0;
-    for (let i = 0; i < value.length; i++) {
+    for (let i = 0; i < value.length; i += 1) {
       hash = (hash << 5) - hash + value.charCodeAt(i);
       hash |= 0;
     }
     return hash.toString(16);
+  }
+
+  private collectAntiFingerprintSignals(userAgent: string, browserInfo: BrowserInfo): string[] {
+    const signals: string[] = [];
+
+    try {
+      if ((navigator as any).webdriver) {
+        signals.push('navigator_webdriver_true');
+      }
+    } catch (error) {
+      signals.push('webdriver_unavailable');
+    }
+
+    if (/HeadlessChrome|PhantomJS|electron/i.test(userAgent)) {
+      signals.push('headless_user_agent');
+    }
+
+    try {
+      if (browserInfo.is_chrome && typeof (window as any).chrome === 'undefined') {
+        signals.push('chrome_runtime_missing');
+      }
+    } catch (error) {
+      signals.push('chrome_runtime_unreachable');
+    }
+
+    try {
+      const languages = Array.isArray(navigator.languages) ? navigator.languages : [];
+      if (languages.length === 0) {
+        signals.push('languages_empty');
+      } else if (navigator.language && languages[0] && navigator.language !== languages[0]) {
+        signals.push('languages_mismatch');
+      }
+    } catch (error) {
+      signals.push('languages_unavailable');
+    }
+
+    try {
+      if (
+        navigator.plugins &&
+        browserInfo.is_chromium_based &&
+        navigator.plugins.length === 0 &&
+        !/Headless/i.test(userAgent)
+      ) {
+        signals.push('plugins_empty');
+      }
+    } catch (error) {
+      signals.push('plugins_unavailable');
+    }
+
+    try {
+      const isMobileUa = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
+      const maxTouchPoints = Number((navigator as any).maxTouchPoints ?? 0);
+      if (isMobileUa && maxTouchPoints === 0) {
+        signals.push('mobile_ua_no_touch');
+      }
+    } catch (error) {
+      signals.push('touchpoints_unavailable');
+    }
+
+    if (signals.length === 0) {
+      signals.push('no_anti_fingerprint_anomalies');
+    }
+
+    if (typeof window !== 'undefined' && typeof console !== 'undefined') {
+      console.info('[AIDetector] anti-fingerprint signals', signals);
+    }
+
+    return signals;
   }
 }

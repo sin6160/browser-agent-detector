@@ -20,7 +20,18 @@ uv sync
 uv run ./scripts/run_server_with_logs.sh --reload
 ```
 
-`run_server_with_logs.sh` は `AI_DETECTOR_TRAINING_LOG=1` とログ保存先（デフォルト`logs/training`）を自動で設定します。別ディレクトリへ保存したい場合は実行前に `export AI_DETECTOR_TRAINING_LOG_PATH=/path/to/logs` を指定してください。
+`run_server_with_logs.sh` は `AI_DETECTOR_TRAINING_LOG=1` とログ保存先（デフォルト `training/browser/data`）を自動で設定します。`AI_DETECTOR_LOG_LABEL=human|bot` を併用すると `training/browser/data/<label>/` 以下へ書き分けられます（未指定時は `unspecified/`）。別ディレクトリへ保存したい場合は実行前に `export AI_DETECTOR_TRAINING_LOG_PATH=/path/to/logs` を指定してください。
+
+`python` で直接起動したい場合は下記のように環境変数を付与して `uvicorn` を呼び出せば同じ挙動になります。
+
+```bash
+cd ai-detector
+uv sync
+AI_DETECTOR_LOG_LABEL=human \
+AI_DETECTOR_TRAINING_LOG=1 \
+AI_DETECTOR_TRAINING_LOG_PATH=./training/browser/data \
+uv run python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+```
 
 ### 追加依存グループ（必要なものだけ実行してください）
 
@@ -86,9 +97,17 @@ ai-detector/
 - 起動後、`http://localhost:8000` で API が利用可能、`http://localhost:8000/docs#/` で Swagger UI が開きます。
 
 ### ブラウザ操作ログ収集モード
-- 環境変数 `AI_DETECTOR_TRAINING_LOG=1` が設定されていると、`POST /detect` で受信したリクエストと判定結果を `logs/training/behavioral_YYYYMMDD.jsonl` に追記保存します（1レコード=1行の JSON）。
+- 環境変数 `AI_DETECTOR_TRAINING_LOG=1` が設定されていると、`POST /detect` で受信したリクエストと判定結果を `training/browser/data/<label>/behavioral_YYYYMMDD.jsonl` に追記保存します（1レコード=1行の JSON）。`<label>` には `AI_DETECTOR_LOG_LABEL` の値（`human` / `bot` / 未設定時 `unspecified`）が入ります。
 - 保存先は `AI_DETECTOR_TRAINING_LOG_PATH` で上書き可能です。相対パスを渡した場合は `ai-detector/` からの相対パスとして解決されます。
 - 通常運用時はログ収集をオフにするため、デフォルトの `run_server.sh` では環境変数を設定していません。
+
+### ブラウザモデルを読み込めない / 無効化したい場合
+- 旧フォーマットの `model.txt` しかない場合など、LightGBM モデルを一時的に無効化したいときは `AI_DETECTOR_DISABLE_BROWSER_MODEL=1` を設定してください。
+- このモードで `POST /detect` を呼び出すと `503 Service Unavailable` が返ります（ブラウザ判定はスキップされるため、挙動確認や他モジュールの開発専用モードです）。
+
+```bash
+AI_DETECTOR_DISABLE_BROWSER_MODEL=1 uv run ./scripts/run_server.sh --reload
+```
 
 ## API 概要
 

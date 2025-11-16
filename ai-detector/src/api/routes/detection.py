@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.dependencies import get_cluster_service, get_detection_service
+from models.lightgbm_loader import LightGBMModelDisabledError
 from schemas.cluster import ClusterAnomalyRequest
 from schemas.detection import (
     BrowserDetectionResult,
@@ -14,7 +15,7 @@ from schemas.detection import (
     UnifiedDetectionResponse,
 )
 from services.cluster_service import ClusterDetectionService
-from services.detection_service import DetectionService
+from services.detection_service import DetectionResult, DetectionService
 from utils.training_logger import log_detection_sample
 
 router = APIRouter()
@@ -45,8 +46,26 @@ async def detect_agent(
     cluster_service: ClusterDetectionService = Depends(get_cluster_service),
 ) -> UnifiedDetectionResponse:
     """ブラウザ行動と購入情報を統合した判定を行う。"""
+    browser_result: DetectionResult | None = None
     try:
         browser_result = detection_service.predict(request)
+    except LightGBMModelDisabledError as exc:
+        placeholder_result = DetectionResult(
+            session_id=request.session_id or "",
+            score=0.0,
+            is_bot=False,
+            confidence=0.0,
+            request_id=request.request_id or "",
+            features_extracted={},
+            raw_prediction=0.0,
+        )
+        log_detection_sample(
+            request=request,
+            browser_result=placeholder_result,
+            persona_result=PersonaDetectionResult(is_provided=False),
+            final_decision=FinalDecision(is_bot=False, reason="browser_model_disabled", recommendation="allow"),
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover

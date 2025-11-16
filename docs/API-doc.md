@@ -17,7 +17,7 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 `UnifiedDetectionRequest` を入力し、LightGBM (ブラウザ行動) と KMeans + IsolationForest (ペルソナ) を組み合わせた最終判定を返します。`persona_features` を省略するとブラウザ行動のみを評価します。推論結果は `utils/training_logger.log_detection_sample` により（必要に応じて）JSONL へ保存されます。
 
 ### 2.2 リクエストボディ
-`recent_actions` は `behavior_sequence` のエイリアスです。`browser-agent-sdk/packages/agent-core` の `BehaviorTrackerFacade` から送信される `context` にはページ遷移や初回操作までの遅延などが含まれます。**Next.js 側の `/api/security/aidetector/detect` は camelCase → snake_case へ正規化した `UnifiedDetectionRequest` を FastAPI に転送します。**
+ブラウザ SDK (`browser-agent-sdk/packages/agent-core`) はすべてのフィールドを snake_case で送信し、`behavior_sequence` が正式名称です（`recent_actions` は旧エイリアスですが後方互換のために受け付けます）。`context` にはページ遷移や初回操作までの遅延などが含まれ、Next.js の `/api/security/aidetector/detect` では camelCase → snake_case 変換済みの JSON が FastAPI へ渡ります。
 
 ```json
 {
@@ -50,7 +50,7 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
       "paste_ratio": 0.04
     }
   },
-  "recent_actions": [
+  "behavior_sequence": [
     { "action": "mouse_move", "timestamp": 1703123456789, "x": 100, "y": 120, "velocity": 1.1 },
     { "action": "click", "timestamp": 1703123457100, "x": 210, "y": 360 },
     { "action": "keystroke", "timestamp": 1703123457600, "key": "Enter", "is_modifier": false }
@@ -76,7 +76,10 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
     "canvas_fingerprint": "canvas-hash",
     "webgl_fingerprint": "webgl-hash",
     "http_signature_state": "unknown",
-    "anti_fingerprint_signals": ["no_debug_info"]
+    "anti_fingerprint_signals": ["no_debug_info"],
+    "network_fingerprint_source": "client",
+    "tls_ja4": "ja4_hash",
+    "http_signature": "sha256(cf-ray:...)"
   },
   "persona_features": {
     "age": 35,
@@ -105,15 +108,14 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 }
 ```
 
-フィールド概要:
-
-- `behavioral_data`: `docs/browser-detection-data.md` 準拠。`FeatureExtractor` が 26 個の LightGBM 特徴量へマッピングする。
-- `recent_actions` (`behavior_sequence`): ミリ秒精度のイベント列。行動の多様性や速度を算出する。
-- `device_fingerprint`: ユーザーエージェントやブラウザ判定結果 (`browser_info.*`) に加えて `canvas_fingerprint` / `webgl_fingerprint` / `http_signature_state` / `anti_fingerprint_signals` / **TLS/JA4 (`tls_ja4`) / HTTP 署名 (`http_signature`)** を含む。TLS/HTTP 指紋は Next.js API で `extractNetworkFingerprint()` を呼び出し、`cf-ja4` などのヘッダー値や主要 HTTP ヘッダーの SHA-256 から算出するため、導入サイト側で追加実装は不要。
+- `request_id`: フロントで発行した ID をそのまま返す。FastAPI 側で UUID を生成していた旧挙動から置き換わっている。
+- `behavioral_data`: `docs/browser-detection-data.md` 準拠。`FeatureExtractor` が 26 個の LightGBM 特徴量（`keystroke_typing_speed_cpm`, `page_session_duration_ms`, `page_paste_ratio` など）へマッピングする。
+- `behavior_sequence`: ミリ秒精度のイベント列。旧フィールド名 `recent_actions` も受付可。
+- `device_fingerprint`: `browser_info.*` に加えて `canvas_fingerprint` / `webgl_fingerprint` / `http_signature_state` / `anti_fingerprint_signals` / `network_fingerprint_source` / `tls_ja4` / `http_signature` を格納する。TLS/JA4 は Next.js や CDN 側で取得できる場合のみ付与し、未収集時は `http_signature_state: "missing"` を送る。
 - `persona_features`: 会員プロフィール + 最新購入情報。`purchase.price` 等は数値で送信する。
 - `context`: 任意のメタ情報。現在はログ分析・トレーニングログでのみ使用する。
 
-> **補足:** 第三者サイトでも `@browser-agent-sdk/node-bridge` 内の `extractNetworkFingerprint()` を呼び出すだけで TLS/JA4 と HTTP 署名を生成できる。Cloudflare など上流で `cf-ja4` ヘッダーが付与されている場合はそのまま拾い、無い場合は受信した HTTP ヘッダーをソートして SHA-256 ハッシュ化した値を `http_signature` として送信する。
+> **補足:** 第三者サイトでも `@browser-agent-sdk/node-bridge` 内の `extractNetworkFingerprint()` を呼び出すだけで TLS/JA4 と HTTP 署名を生成できるが、CDN 終端等で情報が取得できない場合は空のままでも構わない。その場合は `http_signature_state: 'missing'` をセットし、TLS フィンガープリントは別チャネル（Cloudflare Workers 等）で計測する。
 
 ### 2.3 レスポンス
 
@@ -235,6 +237,6 @@ FastAPI 標準 (`{"detail": "..."}`) のエラー形式を採用しています�
 どの例外もアプリケーションログに記録されるため、詳細調査は `ai-detector` のログを参照してください。
 
 ## 7. トレーニングログ / 環境変数
-- `AI_DETECTOR_TRAINING_LOG=1` を設定すると `logs/training/behavioral_YYYYMMDD.jsonl` が生成され、`request`, `browser_result`, `persona_result`, `final_decision` を 1 行 JSON で追記します。
+- `AI_DETECTOR_TRAINING_LOG=1` を設定すると `training/browser/data/<label>/behavioral_YYYYMMDD.jsonl` が生成され、`request`, `browser_result`, `persona_result`, `final_decision` を 1 行 JSON で追記します。`<label>` には `AI_DETECTOR_LOG_LABEL` を指定できます（例: `human` / `bot`）。
 - `AI_DETECTOR_TRAINING_LOG_PATH` で保存先を上書き可能 (相対パスは `ai-detector/` からの相対)。
 - モデルファイルは `models/browser/model.txt`, `models/persona/*.pkl`, `models/persona/model_metadata.json` に配置し、起動時に読み込まれます。見つからない場合は 500 応答と共に詳細パスを返します。

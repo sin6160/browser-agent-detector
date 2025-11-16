@@ -59,6 +59,18 @@ uv run ./scripts/run_server.sh --reload
 - 追加依存: `uv sync --group train`（学習系）、`uv sync --group vector --extra cpu`（ベクトル化ツール）
 - テスト: `uv run pytest`
 - モデル再生成: `uv run python training/cluster/create_models.py`
+- 学習用ログを残したい場合は `uv run ./scripts/run_server_with_logs.sh --reload` で `AI_DETECTOR_TRAINING_LOG=1` を自動セットできます。スクリプトを使わず Python で直接起動する場合は、下記のように環境変数を付与して `uvicorn` を実行してください。
+
+```bash
+cd ai-detector
+uv sync
+AI_DETECTOR_DISABLE_BROWSER_MODEL=1 \
+AI_DETECTOR_LOG_LABEL=human \
+AI_DETECTOR_TRAINING_LOG=1 \
+AI_DETECTOR_TRAINING_LOG_PATH=./training/browser/data \
+uv run python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+```
+- LightGBM モデルを配置していない状態で API だけ起動したい場合は `AI_DETECTOR_DISABLE_BROWSER_MODEL=1` を付与します（このモードでは `POST /detect` へアクセスすると `503 Service Unavailable` が返ります）。`AI_DETECTOR_LOG_LABEL=human|bot` を設定すると、同じ日付でもサブディレクトリを分けて学習用ログを保存できます。
 
 ### Next.js 検証サイト
 ```bash

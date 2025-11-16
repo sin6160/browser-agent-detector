@@ -86,6 +86,7 @@ export interface DeviceFingerprint {
   anti_fingerprint_signals: string[];
   tls_ja4?: string;
   http_signature?: string;
+  network_fingerprint_source?: 'client' | 'server';
 }
 
 export interface CollectorState {

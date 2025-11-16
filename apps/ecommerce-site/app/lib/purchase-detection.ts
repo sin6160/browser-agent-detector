@@ -178,16 +178,7 @@ export async function detectPurchaseAnomaly(
       throw error; // 異常検知の場合は再スロー
     }
 
-    // その他のエラーはデフォルトで許可（購入継続）
-    console.log('検知サーバーエラーのため、デフォルトで許可します');
-    return {
-      cluster_id: 0,
-      prediction: 1,
-      anomaly_score: 0.0,
-      is_anomaly: false,
-      threshold: 0.0,
-      request_id: 'error-fallback'
-    };
+    throw new Error('AI_DETECTOR_UNAVAILABLE');
   }
 }
 

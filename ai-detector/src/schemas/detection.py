@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class MouseMovement(BaseModel):
@@ -43,8 +43,8 @@ class BehavioralClickPatterns(BaseModel):
 
 
 class BehavioralKeystrokeDynamics(BaseModel):
-    typing_speed: float
-    key_hold_time: float
+    typing_speed_cpm: float
+    key_hold_time_ms: float
     key_interval_variance: float
 
 
@@ -55,11 +55,12 @@ class BehavioralScrollBehavior(BaseModel):
 
 
 class BehavioralPageInteraction(BaseModel):
-    session_duration: float
-    page_dwell_time: float
-    first_interaction_delay: Optional[float] = None
+    session_duration_ms: float
+    page_dwell_time_ms: float
+    first_interaction_delay_ms: Optional[float] = None
     navigation_pattern: Optional[str] = None
-    form_fill_speed: Optional[float] = None
+    form_fill_speed_cpm: Optional[float] = None
+    paste_ratio: Optional[float] = None
 
 
 class BehavioralData(BaseModel):
@@ -92,6 +93,11 @@ class DeviceFingerprint(BaseModel):
     browser_info: BrowserInfo
     canvas_fingerprint: str
     webgl_fingerprint: str
+    http_signature_state: Optional[str] = None
+    anti_fingerprint_signals: Optional[List[str]] = None
+    network_fingerprint_source: Optional[str] = None
+    tls_ja4: Optional[str] = None
+    http_signature: Optional[str] = None
 
 
 class BehaviorEvent(BaseModel):
@@ -102,8 +108,16 @@ class BehaviorEvent(BaseModel):
     y: Optional[float] = None
     button: Optional[int] = None
     key: Optional[str] = None
-    deltaX: Optional[float] = Field(None, alias="deltaX")
-    deltaY: Optional[float] = Field(None, alias="deltaY")
+    delta_x: Optional[float] = Field(
+        None,
+        alias="delta_x",
+        validation_alias=AliasChoices("delta_x", "deltaX"),
+    )
+    delta_y: Optional[float] = Field(
+        None,
+        alias="delta_y",
+        validation_alias=AliasChoices("delta_y", "deltaY"),
+    )
 
 
 class PersonaPurchaseData(BaseModel):
@@ -129,13 +143,28 @@ class UnifiedDetectionRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    session_id: Optional[str] = Field(None, alias="sessionId")
+    session_id: Optional[str] = Field(
+        None, alias="session_id", validation_alias=AliasChoices("session_id", "sessionId")
+    )
+    request_id: Optional[str] = Field(
+        None,
+        alias="request_id",
+        validation_alias=AliasChoices("request_id", "requestId"),
+    )
     timestamp: Optional[int] = None
     behavioral_data: BehavioralData = Field(..., alias="behavioral_data")
-    behavior_sequence: List[BehaviorEvent] = Field(..., alias="recent_actions")
+    behavior_sequence: List[BehaviorEvent] = Field(
+        ...,
+        alias="behavior_sequence",
+        validation_alias=AliasChoices("behavior_sequence", "recent_actions"),
+    )
     device_fingerprint: DeviceFingerprint = Field(..., alias="device_fingerprint")
     persona_features: Optional[PersonaFeatures] = Field(None, alias="persona_features")
-    context: Optional[Dict[str, Any]] = Field(None, alias="contextData")
+    context: Optional[Dict[str, Any]] = Field(
+        None,
+        alias="context",
+        validation_alias=AliasChoices("context", "contextData"),
+    )
 
 
 class BrowserDetectionResult(BaseModel):

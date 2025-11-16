@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List
 
 import numpy as np
 
-from schemas.detection import BehaviorEvent, UnifiedDetectionRequest
+from schemas.detection import BehaviorEvent, MouseMovement, UnifiedDetectionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,9 @@ class FeatureExtractor:
             bool(request.persona_features),
         )
 
-        self._fill_temporal_features(features, behavior_sequence, behavioral_data.page_interaction.session_duration)
+        self._fill_temporal_features(
+            features, behavior_sequence, behavioral_data.page_interaction.session_duration_ms
+        )
         self._fill_counts_and_velocity(features, behavior_sequence, behavioral_data.mouse_movements)
         self._fill_aggregated_metrics(features, request)
 
@@ -45,7 +47,7 @@ class FeatureExtractor:
         self,
         features: Dict[str, float],
         sequence: List[BehaviorEvent],
-        session_duration_seconds: float,
+        session_duration_ms: float,
     ) -> None:
         """時間関連の統計量を設定する。"""
         if sequence:
@@ -60,13 +62,13 @@ class FeatureExtractor:
             if time_diffs:
                 features["avg_time_between_actions"] = float(np.mean(time_diffs))
         else:
-            features["total_duration_ms"] = session_duration_seconds * 1000
+            features["total_duration_ms"] = session_duration_ms
 
     def _fill_counts_and_velocity(
         self,
         features: Dict[str, float],
         sequence: List[BehaviorEvent],
-        mouse_movements: List,
+        mouse_movements: List[MouseMovement],
     ) -> None:
         """アクション回数とマウス速度統計を算出する。"""
         action_counts = {
@@ -105,20 +107,21 @@ class FeatureExtractor:
         features["click_click_precision"] = click.click_precision
         features["click_double_click_rate"] = click.double_click_rate
 
-        features["keystroke_typing_speed"] = keystroke.typing_speed
-        features["keystroke_key_hold_time"] = keystroke.key_hold_time
+        features["keystroke_typing_speed_cpm"] = keystroke.typing_speed_cpm
+        features["keystroke_key_hold_time_ms"] = keystroke.key_hold_time_ms
         features["keystroke_key_interval_variance"] = keystroke.key_interval_variance
 
         features["scroll_speed"] = scroll.scroll_speed
         features["scroll_acceleration"] = scroll.scroll_acceleration
         features["pause_frequency"] = scroll.pause_frequency
 
-        features["page_session_duration"] = page.session_duration
-        features["page_page_dwell_time"] = page.page_dwell_time
-        features["page_first_interaction_delay"] = page.first_interaction_delay or 0.0
-        features["page_form_fill_speed"] = page.form_fill_speed or 0.0
+        features["page_session_duration_ms"] = page.session_duration_ms
+        features["page_page_dwell_time_ms"] = page.page_dwell_time_ms
+        features["page_first_interaction_delay_ms"] = page.first_interaction_delay_ms or 0.0
+        features["page_form_fill_speed_cpm"] = page.form_fill_speed_cpm or 0.0
+        features["page_paste_ratio"] = page.paste_ratio or 0.0
 
-        features["first_interaction_delay_ms"] = page.first_interaction_delay or 0.0
+        features["first_interaction_delay_ms"] = page.first_interaction_delay_ms or 0.0
 
         # デバイス情報からモバイル判定
         user_agent = request.device_fingerprint.user_agent.lower()

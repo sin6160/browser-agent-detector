@@ -63,7 +63,7 @@ cart page -> /api/purchase/check
 ### 4.5 FastAPI 検知 API (`ai-detector/`)
 - `POST /detect` は `FeatureExtractor` (`services/feature_extractor.py`) が 26 の LightGBM 特徴量を生成し、`LightGBMModel` の予測値 < 0.5 で `is_bot=true` とする。`persona_features` が存在する場合は `_build_cluster_request` 経由でクラスタ判定を追加し、`persona_detection.is_anomaly=true` なら最終判定を `challenge` にする。
 - `POST /detect_cluster_anomaly` は KMeans + IsolationForest モデルをロードし、`prediction == -1` のとき `is_anomaly=true` を返す。`threshold` はクライアント表示用の情報で、判定には直接使用しない。
-- `AI_DETECTOR_TRAINING_LOG=1` を設定すると `utils/training_logger.log_detection_sample` が JSONL (`logs/training/behavioral_YYYYMMDD.jsonl`) へ検知リクエスト/レスポンスを追記する。`AI_DETECTOR_TRAINING_LOG_PATH` で保存先を上書き可能。
+- `AI_DETECTOR_TRAINING_LOG=1` を設定すると `utils/training_logger.log_detection_sample` が JSONL (`training/browser/data/<label>/behavioral_YYYYMMDD.jsonl`) へ検知リクエスト/レスポンスを追記する。`<label>` には `AI_DETECTOR_LOG_LABEL` の値（`human` / `bot` / 未指定時 `unspecified`）が入る。`AI_DETECTOR_TRAINING_LOG_PATH` で保存先を上書き可能。
 - モデルロード失敗時は `HTTP 500` と詳細なエラーメッセージ (`models/...` のパス) を返し、プロセスを落とさずヘルスチェックで `status=degraded` を示す。
 
 ### 4.6 ログ / 監査

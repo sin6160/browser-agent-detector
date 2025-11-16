@@ -44,7 +44,8 @@ def test_detect_endpoint_returns_prediction(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
 
-    assert body["session_id"] == payload["sessionId"]
+    assert body["session_id"] == payload["session_id"]
+    assert body["request_id"] == payload["request_id"]
     browser = body["browser_detection"]
     assert 0 <= browser["score"] <= 1
     assert isinstance(browser["is_bot"], bool)

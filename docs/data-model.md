@@ -128,7 +128,7 @@ page_form_fill_speed
 | 12 | その他 |
 
 ### 1.5 トレーニングログ
-- 環境変数 `AI_DETECTOR_TRAINING_LOG=1` で `utils/training_logger.py` が有効になり、`logs/training/behavioral_YYYYMMDD.jsonl` に `request`・`browser_result`・`persona_result`・`final_decision` を 1 行 JSON で追記します。
+- 環境変数 `AI_DETECTOR_TRAINING_LOG=1` で `utils/training_logger.py` が有効になり、`training/browser/data/<label>/behavioral_YYYYMMDD.jsonl` に `request`・`browser_result`・`persona_result`・`final_decision` を 1 行 JSON で追記します。`<label>` は `AI_DETECTOR_LOG_LABEL` の値（`human` / `bot` / `unspecified`）です。
 - `AI_DETECTOR_TRAINING_LOG_PATH` で保存先を変更可能。
 
 ## 2. 検証用 EC サイト (apps/ecommerce-site)

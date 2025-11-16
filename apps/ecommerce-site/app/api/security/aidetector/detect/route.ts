@@ -59,12 +59,15 @@ export async function POST(request: NextRequest) {
 
     const networkFingerprint = extractNetworkFingerprint({ headers: request.headers });
 
+    const hasHttpSignature = networkFingerprint.http_signature && networkFingerprint.http_signature !== 'missing';
     const enrichedSnapshot: BehaviorSnapshot = {
       ...snapshot,
       deviceFingerprint: {
         ...snapshot.deviceFingerprint,
         tls_ja4: networkFingerprint.tls_ja4,
         http_signature: networkFingerprint.http_signature,
+        http_signature_state: hasHttpSignature ? 'valid' : 'missing',
+        network_fingerprint_source: 'server',
       },
     };
 
@@ -80,6 +83,9 @@ export async function POST(request: NextRequest) {
     const client = new SecurityApiClient({ endpoint, apiKey });
 
     const detectorResponse = await client.detect(unifiedRequest);
+    if (detectorResponse.reasons?.some((reason) => reason.factor === 'fail_open')) {
+      throw new Error('ai-detector unavailable (fail-open fallback detected)');
+    }
 
     appendSecurityLog({
       requestId,

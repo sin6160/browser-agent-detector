@@ -59,13 +59,11 @@ export async function POST(request: NextRequest) {
 
     // 検知サーバーを呼び出して異常検知を実行
     let detectionResult;
-    let detectionError = null;
 
     try {
       detectionResult = await detectPurchaseAnomaly(user, cartItems);
       console.log('異常検知完了:', detectionResult);
     } catch (error) {
-      detectionError = error;
       console.error('異常検知エラー:', error);
 
       // 異常検知の場合は購入を停止
@@ -98,8 +96,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // その他のエラーの場合はデフォルトで許可（購入継続）
-      console.log('検知サーバーエラーのため、デフォルトで許可します');
+      logSecurityEvent({
+        sessionId: session.sessionId,
+        userId: session.data.userId,
+        ipAddress: request.ip || request.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+        requestPath: '/api/purchase/check',
+        requestMethod: 'POST',
+        securityMode: SECURITY_SUITE_LABEL,
+        actionTaken: 'error',
+        detectionReasons: {
+          detector_unavailable: true,
+          message: error instanceof Error ? error.message : 'unknown_error',
+        },
+      });
+
+      return NextResponse.json(
+        { error: 'AIエージェント検知サーバーが利用できません。しばらくしてから再試行してください。' },
+        { status: 503 },
+      );
     }
 
     // 検知結果に基づいて購入を許可するかどうかを判定
@@ -164,7 +179,6 @@ export async function POST(request: NextRequest) {
         cluster_anomaly: false,
         anomaly_score: detectionResult?.anomaly_score || null,
         threshold: detectionResult?.threshold || null,
-        detection_error: detectionError ? detectionError.message : null
       }
     });
 

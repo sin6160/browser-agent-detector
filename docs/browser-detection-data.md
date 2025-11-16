@@ -1,6 +1,6 @@
 # ブラウザ操作データ仕様 (behavioral_data)
 
-AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行動ログの最新版仕様です。`browser-agent-sdk/packages/agent-core` の `BehaviorTrackerFacade` がこの仕様に従ってデータを生成し、Next.js の `/api/security/aidetector/detect` や FastAPI の `/detect` に渡します。TLS/JA4 や HTTP 署名はクライアントでは生成せず、サーバー側で `extractNetworkFingerprint()` を呼び出して `device_fingerprint` へ付与します。
+AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行動ログの最新版仕様です。`browser-agent-sdk/packages/agent-core` の `BehaviorTrackerFacade` がこの仕様に従ってデータを生成し、Next.js の `/api/security/aidetector/detect` や FastAPI の `/detect` に渡します。TLS/JA4 や HTTP 署名はクライアントでは取得できない環境もあるため、可能な場合のみサーバー側で `extractNetworkFingerprint()` を呼び出して `device_fingerprint` へ付与します（取得できない場合は `http_signature_state: 'missing'` 等をセット）。
 
 ## 0. 実装の参照
 - 行動収集: `browser-agent-sdk/packages/agent-core`
@@ -45,8 +45,8 @@ AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行�
 
 ```json
 "keystroke_dynamics": {
-  "typing_speed": 190,             // 文字/分など
-  "key_hold_time": 115,            // ms
+  "typing_speed_cpm": 190,         // Characters Per Minute
+  "key_hold_time_ms": 115,         // ms
   "key_interval_variance": 48      // ms^2
 }
 ```
@@ -65,11 +65,12 @@ AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行�
 
 ```json
 "page_interaction": {
-  "session_duration": 58,          // 秒
-  "page_dwell_time": 34,           // 秒
-  "first_interaction_delay": 180,  // ms
+  "session_duration_ms": 58000,
+  "page_dwell_time_ms": 34000,
+  "first_interaction_delay_ms": 180,
   "navigation_pattern": "linear",
-  "form_fill_speed": 3.0           // 入力/秒
+  "form_fill_speed_cpm": 180,
+  "paste_ratio": 0.12
 }
 ```
 
@@ -119,6 +120,8 @@ AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行�
 
 - `browser_info` は `BehaviorTracker` が UA 解析して算出。将来的なルール追加にも備え、未使用でも保持する。
 - `user_agent_hash` は簡易ハッシュ (32bit) で、平文とセットで送信しても良い。
+- `http_signature_state` は `unknown` / `missing` / `valid` などを利用し、TLS/HTTP 指紋が取得できていない場合は `missing` を明示する。
+- `network_fingerprint_source` は `client`（ブラウザで取得）/`server`（Next.js 等で補完）を区別する任意フィールド。
 
 ## 5. コンテキスト (`contextData`)
 
@@ -147,3 +150,64 @@ AI エージェント検知 API (`POST /detect`) へ送信するブラウザ行�
 5. `sessionId` が未設定の場合は FastAPI 側で UUID を生成するが、同一ブラウザから継続送信するならクライアントで固定 ID を払い出す。
 
 この仕様に沿って `POST /detect` へデータを送ることで、`FeatureExtractor` が安定して `total_duration_ms`, `velocity_std`, `click_*` などの特徴量を再現でき、`ai-detector` の推論と `apps/ecommerce-site` の可視化を整合させられます。
+
+## 8. リクエスト例
+
+```jsonc
+{
+  "sessionId": "sess_xxxxx",
+  "requestId": "req_xxxxx",
+  "timestamp": 1763190531352,
+  "deviceFingerprint": {
+    "screen_resolution": "1920x1080",
+    "timezone": "Asia/Tokyo",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "user_agent_hash": "-6c4977c",
+    "user_agent_brands": ["Chromium/142", "Google Chrome/142", "Not_A Brand/99"],
+    "vendor": "Google Inc.",
+    "app_version": "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "platform": "Win32",
+    "browser_info": {
+      "name": "Google Chrome",
+      "version": "142.0.0.0",
+      "os": "Windows",
+      "engine": "Blink",
+      "is_chromium_based": true,
+      "is_chrome": true,
+      "is_pure_chromium": false
+    },
+    "canvas_fingerprint": "423cf62c",
+    "webgl_fingerprint": "-571e47b5",
+    "http_signature_state": "missing",
+    "anti_fingerprint_signals": ["no_anti_fingerprint_anomalies"],
+    "network_fingerprint_source": "client"
+  },
+  "behavioralData": {
+    "mouse_movements": [{ "timestamp": 1763190530524, "x": 1185, "y": 388, "velocity": 0 }],
+    "click_patterns": { "avg_click_interval": 0, "click_precision": 0.85, "double_click_rate": 0 },
+    "keystroke_dynamics": { "typing_speed_cpm": 180, "key_hold_time_ms": 0, "key_interval_variance": 0 },
+    "scroll_behavior": { "scroll_speed": 0.64, "scroll_acceleration": 2.1, "pause_frequency": 0 },
+    "page_interaction": {
+      "session_duration_ms": 10062,
+      "page_dwell_time_ms": 10062,
+      "first_interaction_delay_ms": 414,
+      "navigation_pattern": "linear",
+      "form_fill_speed_cpm": 0,
+      "paste_ratio": 0
+    }
+  },
+  "context": {
+    "actionType": "PERIODIC_SNAPSHOT",
+    "url": "http://localhost:3002/products",
+    "siteId": "localhost",
+    "pageLoadTime": 1763190526306,
+    "firstInteractionTime": 1763190530524,
+    "firstInteractionDelay": 414,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...",
+    "locale": "ja"
+  },
+  "recent_actions": [{ "action": "TIMED_SHORT", "timestamp": 1763190526932 }]
+}
+```
+
+> **TLS 指紋に関する注意**: 上記サンプルでは `http_signature_state` が `missing` ですが、Cloudflare 等で `cf-ja4` などを受け取れる場合は Next.js (サーバー) 側で `tls_ja4` / `http_signature` を追加し、`network_fingerprint_source: "server"` として FastAPI へリレーします。
