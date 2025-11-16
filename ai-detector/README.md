@@ -9,6 +9,7 @@ FastAPI と LightGBM を用いた行動ログベースの AI エージェント�
 ```bash
 cd ai-detector
 uv sync
+export UV_PROJECT_ENVIRONMENT="$PWD/.venv"
 uv run ./scripts/run_server.sh --reload
 ```
 
@@ -211,6 +212,17 @@ FastAPI のエンドポイントテストは pytest で実行します。コマ�
   - `data/raw/persona/ecommerce_clustering_data.csv` を元に KMeans + IsolationForest モデルを再生成し、`models/persona/` 配下の `kmeans_model.pkl` / `cluster_isolation_models.pkl` / `model_metadata.json` を上書きします。API で新しいクラスタモデルを使いたい場合は、このスクリプトを実行してモデルファイルを更新してください。
 - `training/persona/vectorize_product_descriptions.py` など
   - 商品カテゴリ説明文をベクトル化して PCA で可視化する分析ツール群です。推論 API のモデル (`models/persona/*.pkl`) とは独立しているため、自動的にクラスタモデルへ反映されたりはしません。
+- `training/browser/train_lightgbm.py`
+  - `training/browser/data/{human,bot}` などに蓄積した行動ログ (JSON/JSONL) を glob で収集し、推論時と同じ特徴量群で LightGBM ブラウザモデルを再学習します。セッション単位でリークを避けた分割や `--auto-scale-pos-weight` によるクラス重み調整、`--lambda-l1/--lambda-l2` や `--feature-fraction` などの正則化パラメータを CLI から指定でき、成果物 (`training/browser/model/<timestamp>/lightgbm_model.txt`, `training_summary.json`) の保存までを一括で実行します。推論側で利用する正式ファイルは `models/browser/lightgbm_model.txt` へコピーしてください。optional フィールドが欠損しているレコードも Pydantic バリデーションを通して安全に処理されます。実行例:
+    ```bash
+    cd ai-detector
+    uv sync --group train
+    uv run python training/browser/train_lightgbm.py \
+      --human-glob "training/browser/data/human/*.jsonl" \
+      --bot-glob "training/browser/data/bot/*.jsonl" \
+      --auto-scale-pos-weight \
+      --valid-ratio 0.2
+    ```
 
 必要に応じて早見表のコマンドブロックをコピーしつつ `uv run python training/cluster/create_models.py` のように実行してください。
 

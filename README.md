@@ -54,12 +54,12 @@ AI エージェントによるブラウザ自動操作は、プロンプトイ�
 ```bash
 cd ai-detector
 uv sync
-uv run ./scripts/run_server.sh --reload
+./scripts/run_server.sh --reload
 ```
 - 追加依存: `uv sync --group train`（学習系）、`uv sync --group vector --extra cpu`（ベクトル化ツール）
 - テスト: `uv run pytest`
 - モデル再生成: `uv run python training/cluster/create_models.py`
-- 学習用ログを残したい場合は `uv run ./scripts/run_server_with_logs.sh --reload` で `AI_DETECTOR_TRAINING_LOG=1` を自動セットできます。スクリプトを使わず Python で直接起動する場合は、下記のように環境変数を付与して `uvicorn` を実行してください。
+- 学習用ログを残したい場合は `./scripts/run_server_with_logs.sh --reload` で `AI_DETECTOR_TRAINING_LOG=1` を自動セットできます。スクリプトを使わず Python で直接起動する場合は、下記のように環境変数を付与して `uvicorn` を実行してください。
 
 ```bash
 cd ai-detector
@@ -68,7 +68,7 @@ AI_DETECTOR_DISABLE_BROWSER_MODEL=1 \
 AI_DETECTOR_LOG_LABEL=human \
 AI_DETECTOR_TRAINING_LOG=1 \
 AI_DETECTOR_TRAINING_LOG_PATH=./training/browser/data \
-uv run python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+./.venv/bin/python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 - LightGBM モデルを配置していない状態で API だけ起動したい場合は `AI_DETECTOR_DISABLE_BROWSER_MODEL=1` を付与します（このモードでは `POST /detect` へアクセスすると `503 Service Unavailable` が返ります）。`AI_DETECTOR_LOG_LABEL=human|bot` を設定すると、同じ日付でもサブディレクトリを分けて学習用ログを保存できます。
 
@@ -84,6 +84,22 @@ pnpm run dev -p 3002
 - セキュリティ API: `/api/security/aidetector/*`, `/api/security/recaptcha/verify`
 
 手順や構成ファイルの詳細は各サブディレクトリの README/ドキュメントを確認してください。
+
+### LightGBM ブラウザモデルの再学習
+- `ai-detector/training/browser/train_lightgbm.py` で `training/browser/data/{human,bot}` 以下の JSON/JSONL を自動的に読み込み、人と AI の行動データから LightGBM モデルを学習できます。
+- glob パターン (`--human-glob`, `--bot-glob`) によりファイル追加へ柔軟に対応し、セッション単位でリークを防ぎつつ検証データを分割します。
+- 実行例:
+  ```bash
+  cd ai-detector
+  uv sync --group train
+  uv run python training/browser/train_lightgbm.py \
+    --human-glob "training/browser/data/human/*.jsonl" \
+    --bot-glob "training/browser/data/bot/*.jsonl" \
+    --auto-scale-pos-weight \
+    --valid-ratio 0.2
+  ```
+- 正則化・木構造のハイパーパラメータ（`--learning-rate`, `--num-leaves`, `--max-depth`, `--lambda-l1`, `--lambda-l2`, `--feature-fraction`, `--bagging-fraction` など）はコマンドライン引数で調整できます。
+- 結果は `ai-detector/training/browser/model/<timestamp>/` に `lightgbm_model.txt` と `training_summary.json` (引数・指標・特徴量重要度) を保存し、推論用の正式モデルは `ai-detector/models/browser/lightgbm_model.txt` へ配置します。
 
 ## デモシナリオ
 

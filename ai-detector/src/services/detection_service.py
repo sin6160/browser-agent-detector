@@ -44,10 +44,10 @@ class DetectionService:
             [features[name] for name in self._model.feature_names], dtype=float
         ).reshape(1, -1)
 
-        prediction = float(self._model.booster.predict(feature_array)[0])
-        logger.info("LightGBM予測確率: %s", prediction)
+        bot_probability = float(self._model.booster.predict(feature_array)[0])
+        logger.info("LightGBM予測確率(bot): %s", bot_probability)
 
-        score = prediction
+        score = 1.0 - bot_probability  # 人間らしさスコア
         is_bot = score < 0.5
         confidence = abs(score - 0.5) * 2
 
@@ -61,5 +61,5 @@ class DetectionService:
             confidence=confidence,
             request_id=request_id,
             features_extracted=features,
-            raw_prediction=prediction,
+            raw_prediction=bot_probability,
         )

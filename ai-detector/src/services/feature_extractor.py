@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Dict, Iterable, List
 
 import numpy as np
@@ -38,8 +39,12 @@ class FeatureExtractor:
         self._fill_temporal_features(
             features, behavior_sequence, behavioral_data.page_interaction.session_duration_ms
         )
-        self._fill_counts_and_velocity(features, behavior_sequence, behavioral_data.mouse_movements)
+        self._fill_counts_and_velocity(features, behavior_sequence, behavioral_data)
+        self._fill_mouse_statistics(features, behavioral_data.mouse_movements)
+        self._fill_sequence_statistics(features, behavior_sequence)
         self._fill_aggregated_metrics(features, request)
+        self._fill_optional_flags(features, behavioral_data)
+        self._fill_rate_features(features, behavioral_data)
 
         return features
 
@@ -68,9 +73,10 @@ class FeatureExtractor:
         self,
         features: Dict[str, float],
         sequence: List[BehaviorEvent],
-        mouse_movements: List[MouseMovement],
+        behavioral_data,
     ) -> None:
         """アクション回数とマウス速度統計を算出する。"""
+        mouse_movements = behavioral_data.mouse_movements
         action_counts = {
             "mouse_move": 0,
             "click": 0,
@@ -80,8 +86,22 @@ class FeatureExtractor:
         }
 
         for event in sequence:
-            if event.action in action_counts:
-                action_counts[event.action] += 1
+            if not event.action:
+                continue
+            action_lower = event.action.lower()
+            if "mouse" in action_lower:
+                action_counts["mouse_move"] += 1
+            elif "click" in action_lower:
+                action_counts["click"] += 1
+            elif "key" in action_lower:
+                action_counts["keystroke"] += 1
+            elif "scroll" in action_lower:
+                action_counts["scroll"] += 1
+            elif "idle" in action_lower:
+                action_counts["idle"] += 1
+
+        if action_counts["mouse_move"] == 0 and mouse_movements:
+            action_counts["mouse_move"] = len(mouse_movements)
 
         features["action_count_mouse_move"] = action_counts["mouse_move"]
         features["action_count_click"] = action_counts["click"]
@@ -94,6 +114,53 @@ class FeatureExtractor:
             features["velocity_mean"] = float(np.mean(velocities))
             features["velocity_max"] = float(np.max(velocities))
             features["velocity_std"] = float(np.std(velocities, ddof=0))
+
+    def _fill_mouse_statistics(self, features: Dict[str, float], mouse_movements: List[MouseMovement]) -> None:
+        count = len(mouse_movements)
+        features["mouse_event_count"] = float(count)
+        features["mouse_activity_flag"] = 1.0 if count > 0 else 0.0
+
+        if count >= 2:
+            total_length = 0.0
+            for prev, curr in zip(mouse_movements[:-1], mouse_movements[1:]):
+                total_length += math.hypot(curr.x - prev.x, curr.y - prev.y)
+            features["mouse_path_length"] = total_length
+            features["mouse_duration_ms"] = float(mouse_movements[-1].timestamp - mouse_movements[0].timestamp)
+        else:
+            features["mouse_path_length"] = 0.0
+            features["mouse_duration_ms"] = 0.0
+
+        velocities = [movement.velocity for movement in mouse_movements if movement.velocity is not None]
+        if velocities:
+            features["mouse_velocity_median"] = float(np.median(velocities))
+            stationary_ratio = sum(1 for v in velocities if abs(v) <= 0.05) / len(velocities)
+            features["mouse_stationary_ratio"] = float(stationary_ratio)
+        else:
+            features["mouse_velocity_median"] = 0.0
+            features["mouse_stationary_ratio"] = 0.0
+
+    def _fill_sequence_statistics(self, features: Dict[str, float], sequence: List[BehaviorEvent]) -> None:
+        count = len(sequence)
+        features["sequence_event_count"] = float(count)
+        if count:
+            unique_actions = {event.action for event in sequence if event.action}
+            features["sequence_unique_actions"] = float(len(unique_actions))
+            timed_actions = sum(1 for event in sequence if event.action and "timed" in event.action.lower())
+            features["timed_action_ratio"] = float(timed_actions) / count
+        else:
+            features["sequence_unique_actions"] = 0.0
+            features["timed_action_ratio"] = 0.0
+
+        visibility_actions = {"visible", "hidden"}
+        visibility_toggle = 0
+        previous_state = None
+        for event in sequence:
+            action = (event.action or "").lower()
+            if action in visibility_actions:
+                if previous_state is not None and action != previous_state:
+                    visibility_toggle += 1
+                previous_state = action
+        features["visibility_toggle_count"] = float(visibility_toggle)
 
     def _fill_aggregated_metrics(self, features: Dict[str, float], request: UnifiedDetectionRequest) -> None:
         """BehaviorTracker が計算した集計値を特徴量へマッピングする。"""
@@ -126,3 +193,53 @@ class FeatureExtractor:
         # デバイス情報からモバイル判定
         user_agent = request.device_fingerprint.user_agent.lower()
         features["is_mobile"] = 1 if "mobile" in user_agent else 0
+
+        features["scroll_activity_flag"] = 1.0 if (scroll.scroll_speed or 0) > 0 else 0.0
+        features["click_activity_flag"] = 1.0 if (click.click_precision or 0) > 0 else 0.0
+
+    def _fill_optional_flags(self, features: Dict[str, float], behavioral_data) -> None:
+        page = behavioral_data.page_interaction
+        features["page_first_interaction_missing"] = 1.0 if page.first_interaction_delay_ms is None else 0.0
+        features["page_form_fill_missing"] = 1.0 if page.form_fill_speed_cpm is None else 0.0
+        features["page_paste_ratio_missing"] = 1.0 if page.paste_ratio is None else 0.0
+        features["first_interaction_delay_missing"] = features["page_first_interaction_missing"]
+
+    def _fill_rate_features(self, features: Dict[str, float], behavioral_data) -> None:
+        """各アクションを時間で正規化した特徴量を計算する。"""
+        session_duration_ms = behavioral_data.page_interaction.session_duration_ms or 0.0
+        duration_seconds = session_duration_ms / 1000.0 if session_duration_ms > 0 else 0.0
+
+        def per_second(value: float) -> float:
+            if duration_seconds <= 0:
+                return 0.0
+            return value / duration_seconds
+
+        features["mouse_event_rate"] = per_second(features.get("mouse_event_count", 0.0))
+        features["click_rate"] = per_second(features.get("action_count_click", 0.0))
+        features["keystroke_rate"] = per_second(features.get("action_count_keystroke", 0.0))
+        features["scroll_rate"] = per_second(features.get("action_count_scroll", 0.0))
+        features["idle_rate"] = per_second(features.get("action_count_idle", 0.0))
+
+        mouse_actions = features.get("action_count_mouse_move", 0.0)
+        features["click_to_mouse_ratio"] = self._safe_ratio(
+            features.get("action_count_click", 0.0), mouse_actions
+        )
+        features["scroll_to_mouse_ratio"] = self._safe_ratio(
+            features.get("action_count_scroll", 0.0), mouse_actions
+        )
+        features["keystroke_to_mouse_ratio"] = self._safe_ratio(
+            features.get("action_count_keystroke", 0.0), mouse_actions
+        )
+
+        mouse_path_length = features.get("mouse_path_length", 0.0)
+        mouse_duration_ms = features.get("mouse_duration_ms", 0.0)
+        features["mouse_avg_speed"] = (
+            mouse_path_length / mouse_duration_ms if mouse_duration_ms > 0 else 0.0
+        )
+        features["mouse_path_rate"] = per_second(mouse_path_length)
+
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> float:
+        if denominator and abs(denominator) > 0:
+            return numerator / denominator
+        return 0.0
