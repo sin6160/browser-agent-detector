@@ -6,7 +6,7 @@ export default function ScoreDisplayScript({ siteKey = '' }: { siteKey?: string 
   const resolvedSiteKey = siteKey?.trim() ?? '';
 
   return (
-    <Script id="recaptcha-score-check" strategy="beforeInteractive">
+    <Script id="recaptcha-score-check" strategy="afterInteractive">
       {`
         (function () {
           if (typeof window === 'undefined') {
@@ -19,6 +19,9 @@ export default function ScoreDisplayScript({ siteKey = '' }: { siteKey?: string 
           console.log('★ スクリプト初期化開始 - スコアバッジを有効化します');
 
           function ensureOverlay() {
+            if (!document.body) {
+              return null;
+            }
             let root = document.getElementById('security-score-overlay');
             if (!root) {
               root = document.createElement('div');
@@ -97,7 +100,30 @@ export default function ScoreDisplayScript({ siteKey = '' }: { siteKey?: string 
           }
 
           window.createScoreDisplay = createScoreDisplay;
-          createScoreDisplay('セキュリティスコア', '-', '-', '-', '-');
+
+          function kickoffInitialDisplay() {
+            // 既に body があればすぐに生成、無ければ再試行
+            const attempt = () => {
+              const overlay = ensureOverlay();
+              if (overlay) {
+                createScoreDisplay('セキュリティスコア', '-', '-', '-', '-');
+                return true;
+              }
+              return false;
+            };
+
+            if (attempt()) {
+              return;
+            }
+
+            let retries = 0;
+            const timer = setInterval(() => {
+              if (attempt() || retries > 20) {
+                clearInterval(timer);
+              }
+              retries += 1;
+            }, 150);
+          }
 
           async function checkRecaptchaScore() {
             try {
@@ -189,12 +215,40 @@ export default function ScoreDisplayScript({ siteKey = '' }: { siteKey?: string 
             checkRecaptchaScore();
           }
 
-          if (HAS_SITE_KEY) {
-            window.addEventListener('load', function () {
-              waitForRecaptchaReady(0);
-            });
+            const start = function () {
+              kickoffInitialDisplay();
+
+              // Hydration 等で DOM が書き換わってもバッジが消えないよう監視
+              if (document.body) {
+                const observer = new MutationObserver(() => {
+                  if (!document.getElementById('security-score-overlay')) {
+                    const restored = ensureOverlay();
+                    if (restored) {
+                      createScoreDisplay(
+                        localStorage.getItem('scoreBadgeTitle') || 'セキュリティスコア',
+                        localStorage.getItem('recaptchaOriginalScore') || '-',
+                        localStorage.getItem('aiDetectorScore') || '-',
+                        localStorage.getItem('clusteringScore') || '-',
+                        localStorage.getItem('clusteringThreshold') || '-',
+                      );
+                    }
+                  }
+                });
+                observer.observe(document.body, { childList: true });
+              }
+
+              if (HAS_SITE_KEY) {
+                waitForRecaptchaReady(0);
+              } else {
+                console.log('reCAPTCHA site key が無いため自動スコア取得をスキップしました');
+              }
+          };
+
+          if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            start();
           } else {
-            console.log('reCAPTCHA site key が無いため自動スコア取得をスキップしました');
+            window.addEventListener('load', start, { once: true });
+            window.addEventListener('DOMContentLoaded', start, { once: true });
           }
         })();
       `}

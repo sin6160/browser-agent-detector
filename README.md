@@ -50,12 +50,15 @@ AI エージェントによるブラウザ自動操作は、プロンプトイ�
 
 ## クイックスタート
 
+**前提**: macOS/Homebrew 環境では初回のみ `brew install uv` を実行してください（Python パッケージ管理ツール uv を導入）。
+
 ### FastAPI 検知 API
 ```bash
 cd ai-detector
 uv sync
 ./scripts/run_server.sh --reload
 ```
+- macOS で LightGBM が `libomp.dylib` を見つけられず起動に失敗する場合は、事前に `brew install libomp` を実行し、必要に応じて `export DYLD_LIBRARY_PATH=/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH` を設定してから再起動してください。
 - 追加依存: `uv sync --group train`（学習系）、`uv sync --group vector --extra cpu`（ベクトル化ツール）
 - テスト: `uv run pytest`
 - モデル再生成: `uv run python training/cluster/create_models.py`
@@ -71,6 +74,9 @@ AI_DETECTOR_TRAINING_LOG_PATH=./training/browser/data \
 ./.venv/bin/python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 - LightGBM モデルを配置していない状態で API だけ起動したい場合は `AI_DETECTOR_DISABLE_BROWSER_MODEL=1` を付与します（このモードでは `POST /detect` へアクセスすると `503 Service Unavailable` が返ります）。`AI_DETECTOR_LOG_LABEL=human|bot` を設定すると、同じ日付でもサブディレクトリを分けて学習用ログを保存できます。
+
+### pnpm のインストール
+`npm install -g pnpm` 
 
 ### Next.js 検証サイト
 ```bash
