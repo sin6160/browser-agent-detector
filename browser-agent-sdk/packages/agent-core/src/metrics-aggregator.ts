@@ -1,6 +1,7 @@
 import { BehavioralData, CollectorState, ClickEvent, KeyEvent, ScrollEvent } from './types';
 
-const MAX_MOUSE_EVENTS = 20;
+// Keep a longer window so 1〜2分程度の手動操作が残る
+const MAX_MOUSE_EVENTS = 200;
 
 export class MetricsAggregator {
   compute(state: CollectorState): BehavioralData {

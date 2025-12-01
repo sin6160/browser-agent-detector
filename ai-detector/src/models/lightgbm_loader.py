@@ -18,6 +18,10 @@ DEFAULT_FEATURE_NAMES: List[str] = [
     "total_duration_ms",
     "first_interaction_delay_ms",
     "avg_time_between_actions",
+    "time_between_actions_std",
+    "time_between_actions_max",
+    "time_between_actions_min",
+    "time_between_actions_cv",
     "velocity_mean",
     "velocity_max",
     "velocity_std",
@@ -46,6 +50,7 @@ DEFAULT_FEATURE_NAMES: List[str] = [
     "mouse_duration_ms",
     "sequence_event_count",
     "sequence_unique_actions",
+    "action_entropy",
     "visibility_toggle_count",
     "timed_action_ratio",
     "page_first_interaction_missing",
@@ -65,6 +70,10 @@ DEFAULT_FEATURE_NAMES: List[str] = [
     "keystroke_to_mouse_ratio",
     "mouse_avg_speed",
     "mouse_path_rate",
+    "fingerprint_http_signature_missing",
+    "fingerprint_tls_ja4_missing",
+    "fingerprint_anti_fp_count",
+    "fingerprint_anti_fp_suspicious",
 ]
 
 

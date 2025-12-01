@@ -12,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 # モデル配置ディレクトリ
 MODELS_DIR = BASE_DIR / "models"
 LIGHTGBM_MODEL_PATH = MODELS_DIR / "browser" / "lightgbm_model.txt"
+BROWSER_ANOMALY_MODEL_PATH = MODELS_DIR / "browser" / "bot_isolation_model.joblib"
 CLUSTER_MODELS_DIR = MODELS_DIR / "persona"
 
 # データディレクトリ（必要に応じて利用）

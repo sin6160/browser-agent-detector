@@ -1,0 +1,35 @@
+{
+  "args": {
+    "bot_glob": [
+      "training/browser/data/bot/*.json*"
+    ],
+    "output_dir": "/Users/saito/Documents/browser-agent-detector/ai-detector/training/browser/model",
+    "contamination": 0.05,
+    "n_estimators": 200,
+    "max_samples": "auto",
+    "random_state": 42,
+    "log_level": "INFO"
+  },
+  "num_samples": 77,
+  "score_min": -0.0450702315061815,
+  "score_max": 0.18765913789961336,
+  "bot_threshold": 0.935084001496805,
+  "combined_threshold": 0.7640164805990219,
+  "metadata": {
+    "contamination": 0.05,
+    "score_stats": {
+      "mean": 0.10252940843700392,
+      "std": 0.05745112153537242,
+      "min": -0.0450702315061815,
+      "max": 0.18765913789961336,
+      "quantiles": {
+        "0.05": -1.5612511283791264e-17,
+        "0.1": 0.010220778883701787,
+        "0.5": 0.1162968371817435,
+        "0.9": 0.16657029788604216,
+        "0.95": 0.1725512785036173
+      }
+    },
+    "bot_score_threshold_quantile": 0.95
+  }
+}

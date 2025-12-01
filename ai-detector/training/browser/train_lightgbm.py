@@ -29,6 +29,9 @@ from sklearn.model_selection import train_test_split
 SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_ROOT = SCRIPT_PATH.parents[2]
 
+HUMAN_LABEL = 1
+BOT_LABEL = 0
+
 
 def _configure_pythonpath() -> None:
     """ai-detector/src を import path に追加する。"""
@@ -353,11 +356,12 @@ def save_artifacts(
     config = {
         "args": args_serializable,
         "feature_names": DEFAULT_FEATURE_NAMES,
+        "label_mapping": {"human": HUMAN_LABEL, "bot": BOT_LABEL},
         "num_samples": len(total_samples),
         "train_samples": train_indices.size,
         "valid_samples": valid_indices.size,
-        "num_human": int(sum(sample.label == 0 for sample in total_samples)),
-        "num_bot": int(sum(sample.label == 1 for sample in total_samples)),
+        "num_human": int(sum(sample.label == HUMAN_LABEL for sample in total_samples)),
+        "num_bot": int(sum(sample.label == BOT_LABEL for sample in total_samples)),
         "metrics": metrics,
         "feature_importance_gain": feature_importance,
     }
@@ -383,8 +387,8 @@ def main() -> None:
     LOGGER.info("Found %d human files, %d bot files", len(human_paths), len(bot_paths))
 
     samples = []
-    samples.extend(build_samples(human_paths, label=0, extractor=extractor))
-    samples.extend(build_samples(bot_paths, label=1, extractor=extractor))
+    samples.extend(build_samples(human_paths, label=HUMAN_LABEL, extractor=extractor))
+    samples.extend(build_samples(bot_paths, label=BOT_LABEL, extractor=extractor))
     if not samples:
         LOGGER.error("No samples loaded. Please check input paths.")
         sys.exit(1)

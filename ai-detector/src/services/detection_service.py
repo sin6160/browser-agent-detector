@@ -44,10 +44,11 @@ class DetectionService:
             [features[name] for name in self._model.feature_names], dtype=float
         ).reshape(1, -1)
 
-        bot_probability = float(self._model.booster.predict(feature_array)[0])
-        logger.info("LightGBM予測確率(bot): %s", bot_probability)
+        # 学習時のポジティブラベルは「human=1」。モデル出力は human 確率。
+        human_probability = float(self._model.booster.predict(feature_array)[0])
+        logger.info("LightGBM予測確率(human): %s", human_probability)
 
-        score = 1.0 - bot_probability  # 人間らしさスコア
+        score = human_probability  # 人間らしさスコア (0=bot, 1=human)
         is_bot = score < 0.5
         confidence = abs(score - 0.5) * 2
 
@@ -61,5 +62,5 @@ class DetectionService:
             confidence=confidence,
             request_id=request_id,
             features_extracted=features,
-            raw_prediction=bot_probability,
+            raw_prediction=human_probability,
         )

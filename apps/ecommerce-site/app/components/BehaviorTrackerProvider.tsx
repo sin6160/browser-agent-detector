@@ -11,14 +11,14 @@ function updateSecurityBadgeFromResult(result: any) {
     return;
   }
 
-  const botScore =
-    typeof result?.botScore === 'number'
-      ? result.botScore
-      : typeof result?.bot_score === 'number'
-        ? result.bot_score
+  const humanScore =
+    typeof result?.humanScore === 'number'
+      ? result.humanScore
+      : typeof result?.human_score === 'number'
+        ? result.human_score
         : null;
 
-  const formatted = botScore !== null ? botScore.toFixed(3) : '-';
+  const formatted = humanScore !== null ? humanScore.toFixed(3) : '-';
 
   try {
     localStorage.setItem('aiDetectorScore', formatted);

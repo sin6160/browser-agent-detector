@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter
 
-from api.dependencies import get_cluster_detector, get_lightgbm_model
+from api.dependencies import get_bot_anomaly_model, get_cluster_detector
 
 router = APIRouter()
 
@@ -24,14 +24,14 @@ async def root() -> dict[str, str]:
 @router.get("/health")
 async def health_check() -> dict[str, object]:
     """ヘルスチェックエンドポイント。"""
-    model_loaded = False
+    anomaly_loaded = False
     cluster_loaded = False
 
     try:
-        get_lightgbm_model()
-        model_loaded = True
+        get_bot_anomaly_model()
+        anomaly_loaded = True
     except Exception:
-        model_loaded = False
+        anomaly_loaded = False
 
     try:
         get_cluster_detector()
@@ -40,8 +40,8 @@ async def health_check() -> dict[str, object]:
         cluster_loaded = False
 
     return {
-        "status": "healthy" if model_loaded and cluster_loaded else "degraded",
-        "model_loaded": model_loaded,
+        "status": "healthy" if anomaly_loaded and cluster_loaded else "degraded",
+        "browser_anomaly_loaded": anomaly_loaded,
         "cluster_model_loaded": cluster_loaded,
         "timestamp": int(time.time() * 1000),
     }

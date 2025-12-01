@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { openDb } from './db';
+import { getUserOrdersWithItems, OrderWithItems } from './orders';
 
 // ユーザー型定義
 export interface User {
@@ -10,11 +11,19 @@ export interface User {
   gender?: number;
   prefecture?: number;
   occupation: string;
+  full_name?: string;
+  phone_number?: string;
+  address_line1?: string;
+  address_line2?: string;
+  address_city?: string;
+  address_prefecture?: string;
+  postal_code?: string;
   member_rank: string;
   registration_date: string;
   total_orders: number;
   total_spent: number;
   last_purchase_date: string | null;
+  orders?: OrderWithItems[];
   created_at: string;
   updated_at: string;
 }
@@ -53,7 +62,16 @@ export async function authenticateUser(email: string, password: string): Promise
         last_purchase_date, 
         created_at, 
         updated_at,
-        age
+        age,
+        gender,
+        prefecture,
+        full_name,
+        phone_number,
+        address_line1,
+        address_line2,
+        address_city,
+        address_prefecture,
+        postal_code
       FROM users 
       WHERE email = ? AND password_hash = ?
     `;
@@ -113,9 +131,26 @@ export async function registerUser(
 
     // 新規ユーザー登録
     const result = await db.run(
-      `INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [email, hashedPassword, 25, 1, 13, occupation, member_rank]
+      `INSERT INTO users (
+        email, password_hash, age, gender, prefecture, occupation, member_rank,
+        full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        email,
+        hashedPassword,
+        30,
+        1,
+        13,
+        occupation,
+        member_rank,
+        '仮名 テスト',
+        '090-1111-2222',
+        '〒101-0000 東京都架空市テスト町1-1-1',
+        'ダミーコート101号',
+        'テスト町',
+        '架空市',
+        '101-0000'
+      ]
     );
 
     if (result.lastID) {
@@ -147,10 +182,19 @@ export async function getUserById(userId: number): Promise<User | null> {
   try {
     const user = await db.get(
       `SELECT id, email, age, gender, prefecture, occupation, member_rank, registration_date,
-       total_orders, total_spent, last_purchase_date, created_at, updated_at
+       total_orders, total_spent, last_purchase_date, created_at, updated_at,
+       full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
        FROM users WHERE id = ?`,
       [userId]
     );
+    if (user && typeof user.age === 'number' && !user.age_group) {
+      if (user.age < 20) user.age_group = '~10s';
+      else if (user.age < 30) user.age_group = '20s';
+      else if (user.age < 40) user.age_group = '30s';
+      else if (user.age < 50) user.age_group = '40s';
+      else if (user.age < 60) user.age_group = '50s';
+      else user.age_group = '60s+';
+    }
 
     return user || null;
   } catch (error) {
@@ -171,7 +215,8 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   try {
     const user = await db.get(
       `SELECT id, email, age_group, occupation, member_rank, registration_date,
-       total_orders, total_spent, last_purchase_date, created_at, updated_at
+       total_orders, total_spent, last_purchase_date, created_at, updated_at,
+       full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
        FROM users WHERE email = ?`,
       [email]
     );

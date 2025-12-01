@@ -3,230 +3,36 @@ version=v4
 num_class=1
 num_tree_per_iteration=1
 label_index=0
-max_feature_idx=49
+max_feature_idx=58
 objective=binary sigmoid:1
-feature_names=total_duration_ms first_interaction_delay_ms avg_time_between_actions velocity_mean velocity_max velocity_std action_count_click action_count_keystroke action_count_scroll action_count_idle is_mobile click_avg_click_interval click_click_precision click_double_click_rate keystroke_typing_speed_cpm keystroke_key_hold_time_ms keystroke_key_interval_variance scroll_speed scroll_acceleration pause_frequency page_session_duration_ms page_page_dwell_time_ms page_first_interaction_delay_ms page_form_fill_speed_cpm page_paste_ratio mouse_path_length mouse_velocity_median mouse_stationary_ratio mouse_duration_ms sequence_event_count sequence_unique_actions visibility_toggle_count timed_action_ratio page_first_interaction_missing page_form_fill_missing page_paste_ratio_missing first_interaction_delay_missing mouse_activity_flag scroll_activity_flag click_activity_flag mouse_event_rate click_rate keystroke_rate scroll_rate idle_rate click_to_mouse_ratio scroll_to_mouse_ratio keystroke_to_mouse_ratio mouse_avg_speed mouse_path_rate
-feature_infos=[0:107741] [0:110078] [0:53870.5] [0:4.2884969711303711] [0:13.102930068969727] [0:3.0354642868041992] [0:12] none none none none [0:27510] [0:1] [0:0.10000000149011612] [0:86.083213806152344] [0:158.66667175292969] [0:1283609728] [0:1.3215376138687134] [0:1.933624267578125] none [609:115201] [609:115201] [0:110078] [0:8.8976764678955078] [0:1] [0:2075.3349609375] [0:6.2664351463317871] [0:1] [0:27517] [0:12] [0:6] [0:1] [0:1] [0:1] none none [0:1] [0:1] [0:1] [0:1] [0:4.9019608497619629] [0:0.39398515224456787] none none none [0:1] none none [0:6.4299736022949219] [0:137.57527160644531]
-tree_sizes=448 459 460 359 461 462 462 463 460 461 362
+feature_names=total_duration_ms first_interaction_delay_ms avg_time_between_actions time_between_actions_std time_between_actions_max time_between_actions_min time_between_actions_cv velocity_mean velocity_max velocity_std action_count_click action_count_keystroke action_count_scroll action_count_idle is_mobile click_avg_click_interval click_click_precision click_double_click_rate keystroke_typing_speed_cpm keystroke_key_hold_time_ms keystroke_key_interval_variance scroll_speed scroll_acceleration pause_frequency page_session_duration_ms page_page_dwell_time_ms page_first_interaction_delay_ms page_form_fill_speed_cpm page_paste_ratio mouse_path_length mouse_velocity_median mouse_stationary_ratio mouse_duration_ms sequence_event_count sequence_unique_actions action_entropy visibility_toggle_count timed_action_ratio page_first_interaction_missing page_form_fill_missing page_paste_ratio_missing first_interaction_delay_missing mouse_activity_flag scroll_activity_flag click_activity_flag mouse_event_rate click_rate keystroke_rate scroll_rate idle_rate click_to_mouse_ratio scroll_to_mouse_ratio keystroke_to_mouse_ratio mouse_avg_speed mouse_path_rate fingerprint_http_signature_missing fingerprint_tls_ja4_missing fingerprint_anti_fp_count fingerprint_anti_fp_suspicious
+feature_infos=[0:195187] [0:93496] [0:92992] [0:32035.990234375] [0:92992] [0:92992] [0:2.3749756813049316] [0:0.93287450075149536] [0:4.943540096282959] [0:1.3329024314880371] [0:18] none none none none [0:10552.93359375] [0:1] [0:0.2222222238779068] none none none [0:0.71790498495101929] [0:1.4221519231796265] none [509:205030] [509:205030] [0:93496] [0:7.9920082092285156] [0:1] [0:7269.15478515625] [0:0.43338501453399658] [0:1] [0:171621] [1:98] [1:7] [0:1.6313453912734985] none [0.010204081423580647:1] [0:1] none none [0:1] [0:1] [0:1] [0:1] [0:7.189216136932373] [0:0.39880359172821045] none none none [0:6] none none [0:0.71785181760787964] [0:596.32513427734375] none none none none
+tree_sizes=446
 
 Tree=0
 num_leaves=3
 num_cat=0
-split_feature=40 20
-split_gain=57.0421 0.158798
-threshold=0.22851888835430148 37747.000000000007
+split_feature=7 2
+split_gain=67.8425 5.79334
+threshold=0.2943140864372254 3587.2999877929692
 decision_type=2 2
 left_child=1 -1
 right_child=-2 -3
-leaf_value=0.19753408085710372 0.079736700351206891 0.18012596259252567
-leaf_weight=5.389030650258066 7.46173471212387 3.515306144952774
-leaf_count=25 30 16
-internal_value=0.140641 0.191482
-internal_weight=16.3661 8.90434
-internal_count=71 41
+leaf_value=-1.1760804871598163 -1.0659686038773568 -1.2293639504221818
+leaf_weight=3.4993432313203812 5.8847814798355103 3.5729029774665833
+leaf_count=15 10 20
+internal_value=-1.14035 -1.20272
+internal_weight=12.957 7.07225
+internal_count=45 35
 is_linear=0
 shrinkage=1
-
-
-Tree=1
-num_leaves=3
-num_cat=0
-split_feature=40 20
-split_gain=53.712 0.145109
-threshold=0.22851888835430148 37747.000000000007
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.053073885896763137 -0.061271173176537012 0.036051130869850387
-leaf_weight=5.3641691803932208 7.4880914390087119 3.5048275887966156
-leaf_count=25 30 16
-internal_value=-0.00236788 0.0471583
-internal_weight=16.3571 8.869
-internal_count=71 41
-is_linear=0
-shrinkage=0.03
-
-
-Tree=2
-num_leaves=3
-num_cat=0
-split_feature=40 20
-split_gain=50.6602 0.134619
-threshold=0.22851888835430148 37747.000000000007
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.05181554058985495 -0.059367445486570997 0.035122764518095352
-leaf_weight=5.3325016051530856 7.499360740184783 3.4923724234104156
-leaf_count=25 30 16
-internal_value=-0.00228276 0.0460132
-internal_weight=16.3242 8.82487
-internal_count=71 41
-is_linear=0
-shrinkage=0.03
-
-
-Tree=3
-num_leaves=2
-num_cat=0
-split_feature=3
-split_gain=45.5939
-threshold=0.061327009461820133
-decision_type=2
-left_child=-1
-right_child=-2
-leaf_value=0.044993572550445671 -0.054956967179184663
-leaf_weight=8.564823731780054 7.7048499137163153
-leaf_count=40 31
-internal_value=-0.00220343
-internal_weight=16.2697
-internal_count=71
-is_linear=0
-shrinkage=0.03
-
-
-Tree=4
-num_leaves=3
-num_cat=0
-split_feature=40 20
-split_gain=45.5268 0.142285
-threshold=0.22851888835430148 37747.000000000007
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.049769062775611141 -0.056201578612797468 0.033303809734939564
-leaf_weight=5.2595781087875384 7.4833695888519278 3.4599198848009109
-leaf_count=25 30 16
-internal_value=-0.00214056 0.0440275
-internal_weight=16.2029 8.7195
-internal_count=71 41
-is_linear=0
-shrinkage=0.03
-
-
-Tree=5
-num_leaves=3
-num_cat=0
-split_feature=4 32
-split_gain=42.7479 0.403818
-threshold=0.22175973467528823 0.58333334326744091
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.049078463110584433 -0.055446747896159262 0.030372635327321703
-leaf_weight=3.9890354722738284 8.1988376677036268 4.5007726550102234
-leaf_count=19 33 21
-internal_value=-0.00677377 0.0399801
-internal_weight=16.6886 8.48981
-internal_count=73 40
-is_linear=0
-shrinkage=0.03
-
-
-Tree=6
-num_leaves=3
-num_cat=0
-split_feature=3 32
-split_gain=40.4911 0.387999
-threshold=0.061327009461820133 0.58333334326744091
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.048077317106096779 -0.054037527036298494 0.029634847531282232
-leaf_weight=3.9525684863328951 8.1633938401937467 4.477284774184227
-leaf_count=19 33 21
-internal_value=-0.00659246 0.0390961
-internal_weight=16.5932 8.42985
-internal_count=73 40
-is_linear=0
-shrinkage=0.03
-
-
-Tree=7
-num_leaves=3
-num_cat=0
-split_feature=3 32
-split_gain=38.3963 0.374835
-threshold=0.061327009461820133 0.58333334326744091
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.047140364328272663 -0.052735422489145145 0.028923595809448106
-leaf_weight=3.9127812832593936 8.1171602308750135 4.4525971710681915
-leaf_count=19 33 21
-internal_value=-0.00642205 0.0382548
-internal_weight=16.4825 8.36538
-internal_count=73 40
-is_linear=0
-shrinkage=0.03
-
-
-Tree=8
-num_leaves=3
-num_cat=0
-split_feature=3 1
-split_gain=36.4476 0.21274
-threshold=0.061327009461820133 6896.5000000000009
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.029808383991658888 -0.051528952412975969 0.046126666072018929
-leaf_weight=4.8299152404069918 8.0611682534217817 3.4669704735279083
-leaf_count=23 33 17
-internal_value=-0.00626144 0.0374526
-internal_weight=16.3581 8.29689
-internal_count=73 40
-is_linear=0
-shrinkage=0.03
-
-
-Tree=9
-num_leaves=3
-num_cat=0
-split_feature=3 32
-split_gain=34.6305 0.360703
-threshold=0.061327009461820133 0.58333334326744091
-decision_type=2 2
-left_child=1 -1
-right_child=-2 -3
-leaf_value=0.045466897654020295 -0.050408213972378151 0.027536767124994411
-leaf_weight=3.826618045568468 7.9963738620281211 4.3986664265394211
-leaf_count=19 33 21
-internal_value=-0.0061093 0.0366846
-internal_weight=16.2217 8.22528
-internal_count=73 40
-is_linear=0
-shrinkage=0.03
-
-
-Tree=10
-num_leaves=2
-num_cat=0
-split_feature=40
-split_gain=38.9856
-threshold=0.058023095130920417
-decision_type=2
-left_child=-1
-right_child=-2
-leaf_value=0.043248620337002684 -0.046808323365058163
-leaf_weight=8.4814910292625445 8.6187474429607374
-leaf_count=42 36
-internal_value=-0.00197511
-internal_weight=17.1002
-internal_count=78
-is_linear=0
-shrinkage=0.03
 
 
 end of trees
 
 feature_importances:
-velocity_mean=5
-mouse_event_rate=5
-page_session_duration_ms=4
-timed_action_ratio=4
-first_interaction_delay_ms=1
-velocity_max=1
+avg_time_between_actions=1
+velocity_mean=1
 
 parameters:
 [boosting: gbdt]
@@ -325,7 +131,7 @@ parameters:
 [objective_seed: 16083]
 [num_class: 1]
 [is_unbalance: 0]
-[scale_pos_weight: 0.866667]
+[scale_pos_weight: 3.29412]
 [sigmoid: 1]
 [boost_from_average: 1]
 [reg_sqrt: 0]

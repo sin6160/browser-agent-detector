@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserById } from '@/app/lib/auth';
+import { getUserOrdersWithItems } from '@/app/lib/orders';
 import { getSession } from '@/app/lib/session';
 
 export async function GET(request: NextRequest) {
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
     
     // ユーザー情報を取得
     const user = await getUserById(session.data.userId);
+    const orders = await getUserOrdersWithItems(session.data.userId);
     
     if (!user) {
       return NextResponse.json(
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    return NextResponse.json({ user });
+    return NextResponse.json({ user: { ...user, orders } });
   } catch (error) {
     console.error('User info error:', error);
     

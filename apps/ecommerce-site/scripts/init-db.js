@@ -35,6 +35,13 @@ async function initDb() {
         gender INTEGER,
         prefecture INTEGER,
         occupation VARCHAR(50),
+        full_name TEXT,
+        phone_number VARCHAR(20),
+        address_line1 TEXT,
+        address_line2 TEXT,
+        address_city TEXT,
+        address_prefecture TEXT,
+        postal_code VARCHAR(20),
         member_rank VARCHAR(20) DEFAULT 'bronze',
         registration_date DATETIME DEFAULT CURRENT_TIMESTAMP,
 
@@ -148,32 +155,62 @@ async function initDb() {
     if (!userExists) {
       // 若年学生クラスタ（男性、東京、22歳）
       await db.run(
-        'INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['student@example.com', hashPassword('password123'), 22, 1, 13, 'student', 'bronze']
+        `INSERT INTO users (
+          email, password_hash, age, gender, prefecture, occupation, member_rank,
+          full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'student@example.com', hashPassword('password123'), 22, 1, 13, 'student', 'bronze',
+          '架空 太郎', '090-0000-9999', '〒999-9999 東京都架空市幻町1-2-3', '架空マンション999号', '幻町', '架空市', '999-9999'
+        ]
       );
 
       // 働く女性クラスタ（女性、神奈川、28歳）
       await db.run(
-        'INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['office@example.com', hashPassword('password123'), 28, 2, 14, 'office', 'silver']
+        `INSERT INTO users (
+          email, password_hash, age, gender, prefecture, occupation, member_rank,
+          full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'office@example.com', hashPassword('password123'), 28, 2, 14, 'office', 'silver',
+          '虚空 花子', '080-1234-0000', '〒000-0000 神奈川県虚構市月見台0-0-0', 'フェイクタワー20F', '月見台', '虚構市', '000-0000'
+        ]
       );
 
       // 技術系男性クラスタ（男性、東京、35歳）
       await db.run(
-        'INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['tech@example.com', hashPassword('password123'), 35, 1, 13, 'tech', 'gold']
+        `INSERT INTO users (
+          email, password_hash, age, gender, prefecture, occupation, member_rank,
+          full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'tech@example.com', hashPassword('password123'), 35, 1, 13, 'tech', 'gold',
+          '電脳 次郎', '070-4242-4242', '〒424-2424 大阪府不存在区夢見ヶ丘42-42', 'テストラボB棟', '夢見ヶ丘', '不存在区', '424-2424'
+        ]
       );
 
       // 主婦クラスタ（女性、大阪、65歳）
       await db.run(
-        'INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['homemaker@example.com', hashPassword('password123'), 65, 2, 27, 'other', 'silver']
+        `INSERT INTO users (
+          email, password_hash, age, gender, prefecture, occupation, member_rank,
+          full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'homemaker@example.com', hashPassword('password123'), 65, 2, 27, 'other', 'silver',
+          '夢野 桜子', '050-9999-0000', '〒123-4567 愛知県仮想市花吹町3-14-15', 'サンプルハウス1号', '花吹町', '仮想市', '123-4567'
+        ]
       );
 
       // プレミアム会員クラスタ（男性、愛知、55歳）
       await db.run(
-        'INSERT INTO users (email, password_hash, age, gender, prefecture, occupation, member_rank) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['premium@example.com', hashPassword('password123'), 55, 1, 23, 'business', 'platinum']
+        `INSERT INTO users (
+          email, password_hash, age, gender, prefecture, occupation, member_rank,
+          full_name, phone_number, address_line1, address_line2, address_city, address_prefecture, postal_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'premium@example.com', hashPassword('password123'), 55, 1, 23, 'business', 'platinum',
+          '星野 銀河', '0120-777-999', '〒777-7777 京都府架洲郡想田村7-7-7', '七星館', '想田村', '架洲郡', '777-7777'
+        ]
       );
 
       console.log('サンプルユーザーデータを作成しました');
@@ -294,6 +331,101 @@ async function initDb() {
     } else {
       console.log('商品データは既に存在します');
     }
+
+    // 購入履歴シード用ヘルパー（ユーザー作成後に実行する）
+    const productPriceCache = {};
+    async function priceOf(id) {
+      if (productPriceCache[id]) return productPriceCache[id];
+      const row = await db.get('SELECT price FROM products WHERE id = ?', [id]);
+      productPriceCache[id] = row?.price || 0;
+      return productPriceCache[id];
+    }
+
+    async function addOrder(userEmail, createdAt, itemSpecs) {
+      const user = await db.get('SELECT id FROM users WHERE email = ?', [userEmail]);
+      if (!user) return;
+      let total = 0;
+      const itemsWithPrice = [];
+      for (const spec of itemSpecs) {
+        const unitPrice = await priceOf(spec.product_id);
+        total += unitPrice * spec.quantity;
+        itemsWithPrice.push({ ...spec, unit_price: unitPrice });
+      }
+      const orderResult = await db.run(
+        'INSERT INTO orders (user_id, total_amount, status, created_at) VALUES (?, ?, ?, ?)',
+        [user.id, total, 'completed', createdAt]
+      );
+      const orderId = orderResult.lastID;
+      for (const item of itemsWithPrice) {
+        await db.run(
+          'INSERT INTO order_items (order_id, product_id, quantity, unit_price, created_at) VALUES (?, ?, ?, ?, ?)',
+          [orderId, item.product_id, item.quantity, item.unit_price, createdAt]
+        );
+      }
+    }
+
+    // personaを反映した購入履歴サンプル
+    await addOrder('student@example.com', '2025-10-10 14:00:00', [
+      { product_id: 11, quantity: 2 },
+      { product_id: 17, quantity: 1 }
+    ]);
+    await addOrder('student@example.com', '2025-10-18 20:15:00', [
+      { product_id: 12, quantity: 1 },
+      { product_id: 5, quantity: 1 }
+    ]);
+
+    await addOrder('office@example.com', '2025-09-28 19:30:00', [
+      { product_id: 12, quantity: 2 },
+      { product_id: 16, quantity: 1 },
+      { product_id: 19, quantity: 1 }
+    ]);
+    await addOrder('office@example.com', '2025-10-22 12:10:00', [
+      { product_id: 11, quantity: 1 },
+      { product_id: 15, quantity: 1 }
+    ]);
+
+    await addOrder('tech@example.com', '2025-10-05 23:40:00', [
+      { product_id: 2, quantity: 1 },
+      { product_id: 8, quantity: 1 },
+      { product_id: 9, quantity: 1 }
+    ]);
+    await addOrder('tech@example.com', '2025-10-25 01:20:00', [
+      { product_id: 6, quantity: 1 }
+    ]);
+
+    await addOrder('homemaker@example.com', '2025-09-15 10:05:00', [
+      { product_id: 18, quantity: 1 },
+      { product_id: 17, quantity: 2 },
+      { product_id: 15, quantity: 2 }
+    ]);
+    await addOrder('homemaker@example.com', '2025-10-12 14:30:00', [
+      { product_id: 13, quantity: 1 }
+    ]);
+
+    await addOrder('premium@example.com', '2025-09-05 21:00:00', [
+      { product_id: 7, quantity: 1 },
+      { product_id: 20, quantity: 1 },
+      { product_id: 12, quantity: 1 }
+    ]);
+    await addOrder('premium@example.com', '2025-10-18 18:45:00', [
+      { product_id: 2, quantity: 1 },
+      { product_id: 10, quantity: 1 }
+    ]);
+
+    // 集計を更新
+    await db.exec(`
+      UPDATE users SET
+        total_orders = (
+          SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id
+        ),
+        total_spent = (
+          SELECT IFNULL(SUM(total_amount), 0) FROM orders o WHERE o.user_id = users.id
+        ),
+        last_purchase_date = (
+          SELECT MAX(created_at) FROM orders o WHERE o.user_id = users.id
+        ),
+        updated_at = CURRENT_TIMESTAMP
+    `);
 
     // セッションテーブルの作成
     await db.run(`

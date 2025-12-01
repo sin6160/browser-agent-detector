@@ -13,7 +13,7 @@ export interface EventCollectorOptions {
 }
 
 const DEFAULTS = {
-  maxRecentActions: 12,
+  maxRecentActions: 120,
   mouseBuffer: 1000,
   clickBuffer: 100,
   keyBuffer: 500,
@@ -49,6 +49,7 @@ export class EventCollector {
   private keyPressMap: Map<string, number> = new Map();
   private scrollEvents: ScrollEvent[] = [];
   private recentActions: RecentAction[] = [];
+  private mouseRecentSampleCounter = 0;
 
   constructor(bus: BehaviorEventBus, options?: EventCollectorOptions) {
     this.bus = bus;
@@ -112,6 +113,12 @@ export class EventCollector {
           this.mouseEvents.shift();
         }
         this.lastMousePosition = { x: e.clientX, y: e.clientY };
+
+        // Downsampled mouse movement into recent_actions (約5Hz)
+        this.mouseRecentSampleCounter += 1;
+        if (this.mouseRecentSampleCounter % 4 === 0) {
+          this.recordRecentAction('mouse_move', { x: e.clientX, y: e.clientY });
+        }
       }, 50);
     });
 
@@ -317,4 +324,3 @@ export class EventCollector {
     };
   }
 }
-

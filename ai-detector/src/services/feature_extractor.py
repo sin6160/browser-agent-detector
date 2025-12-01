@@ -66,8 +66,18 @@ class FeatureExtractor:
             ]
             if time_diffs:
                 features["avg_time_between_actions"] = float(np.mean(time_diffs))
+                features["time_between_actions_std"] = float(np.std(time_diffs))
+                features["time_between_actions_max"] = float(np.max(time_diffs))
+                features["time_between_actions_min"] = float(np.min(time_diffs))
+                std = features["time_between_actions_std"]
+                mean = features["avg_time_between_actions"]
+                features["time_between_actions_cv"] = float(std / mean) if mean else 0.0
         else:
             features["total_duration_ms"] = session_duration_ms
+            features["time_between_actions_std"] = 0.0
+            features["time_between_actions_max"] = 0.0
+            features["time_between_actions_min"] = 0.0
+            features["time_between_actions_cv"] = 0.0
 
     def _fill_counts_and_velocity(
         self,
@@ -145,10 +155,24 @@ class FeatureExtractor:
         if count:
             unique_actions = {event.action for event in sequence if event.action}
             features["sequence_unique_actions"] = float(len(unique_actions))
+            action_counts = {}
+            for event in sequence:
+                if not event.action:
+                    continue
+                key = event.action.lower()
+                action_counts[key] = action_counts.get(key, 0) + 1
+            total_actions = sum(action_counts.values())
+            if total_actions > 0:
+                entropy = 0.0
+                for value in action_counts.values():
+                    p = value / total_actions
+                    entropy -= p * math.log(p)
+                features["action_entropy"] = entropy
             timed_actions = sum(1 for event in sequence if event.action and "timed" in event.action.lower())
             features["timed_action_ratio"] = float(timed_actions) / count
         else:
             features["sequence_unique_actions"] = 0.0
+            features["action_entropy"] = 0.0
             features["timed_action_ratio"] = 0.0
 
         visibility_actions = {"visible", "hidden"}
@@ -197,6 +221,8 @@ class FeatureExtractor:
         features["scroll_activity_flag"] = 1.0 if (scroll.scroll_speed or 0) > 0 else 0.0
         features["click_activity_flag"] = 1.0 if (click.click_precision or 0) > 0 else 0.0
 
+        self._fill_device_fingerprint_features(features, request.device_fingerprint)
+
     def _fill_optional_flags(self, features: Dict[str, float], behavioral_data) -> None:
         page = behavioral_data.page_interaction
         features["page_first_interaction_missing"] = 1.0 if page.first_interaction_delay_ms is None else 0.0
@@ -237,6 +263,30 @@ class FeatureExtractor:
             mouse_path_length / mouse_duration_ms if mouse_duration_ms > 0 else 0.0
         )
         features["mouse_path_rate"] = per_second(mouse_path_length)
+
+    def _fill_device_fingerprint_features(self, features: Dict[str, float], device_fingerprint) -> None:
+        """デバイス/ネットワーク由来の単純フラグを付与する。"""
+        http_state = (device_fingerprint.http_signature_state or "missing").lower()
+        features["fingerprint_http_signature_missing"] = 1.0 if http_state in {"missing", "unknown"} else 0.0
+
+        tls_ja4 = device_fingerprint.tls_ja4
+        features["fingerprint_tls_ja4_missing"] = 1.0 if not tls_ja4 or tls_ja4 == "unknown" else 0.0
+
+        anti_fp_signals = device_fingerprint.anti_fingerprint_signals or []
+        features["fingerprint_anti_fp_count"] = float(len(anti_fp_signals))
+        suspicious_keys = {
+            "navigator_webdriver_true",
+            "headless_user_agent",
+            "plugins_empty",
+            "mobile_ua_no_touch",
+            "languages_mismatch",
+            "chrome_runtime_missing",
+            "canvas_error",
+            "webgl_error",
+        }
+        features["fingerprint_anti_fp_suspicious"] = (
+            1.0 if any(signal in suspicious_keys for signal in anti_fp_signals) else 0.0
+        )
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> float:

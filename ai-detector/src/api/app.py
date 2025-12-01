@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     logger.info("アプリケーション起動中: モデルを読み込みます")
 
     try:
-        dependencies.get_lightgbm_model()
+        dependencies.get_bot_anomaly_model()
         dependencies.get_cluster_detector()
         logger.info("すべてのモデル読み込みが完了しました")
     except Exception as exc:  # pragma: no cover - 起動時エラー
