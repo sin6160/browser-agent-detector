@@ -3,6 +3,23 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
+# 環境変数（Secrets はダッシュボード管理）
+[vars]
+DEPLOY_ENV = "dev"
+API_URL = "https://ecommerce-site-a4m.pages.dev"
+AI_DETECTOR_ENDPOINT_URL = "https://ai-detector-529361280510.asia-northeast1.run.app"
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY = "6LeCqJcrAAAAAC1Bh_VIuZutdmeQ_U_RhxzBAnYj"
+RECAPTCHA_SITE_KEY = "6LeCqJcrAAAAAC1Bh_VIuZutdmeQ_U_RhxzBAnYj"
+GOOGLE_CLOUD_PROJECT_ID = "decoded-agency-287107"
+
+[build.environment]
+DEPLOY_ENV = "dev"
+API_URL = "https://ecommerce-site-a4m.pages.dev"
+AI_DETECTOR_ENDPOINT_URL = "https://ai-detector-529361280510.asia-northeast1.run.app"
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY = "6LeCqJcrAAAAAC1Bh_VIuZutdmeQ_U_RhxzBAnYj"
+RECAPTCHA_SITE_KEY = "6LeCqJcrAAAAAC1Bh_VIuZutdmeQ_U_RhxzBAnYj"
+GOOGLE_CLOUD_PROJECT_ID = "decoded-agency-287107"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "ecommerce-site-db"
