@@ -16,11 +16,17 @@ export async function POST(request: NextRequest) {
       request.ip || request.headers.get('x-forwarded-for') || 'ip_unknown';
     const requestId = globalThis.crypto?.randomUUID?.() ?? `req_${Date.now()}`;
 
+    // Cloud Run 側の FastAPI スキーマに合わせてキーをスネークケースに整形する
     const payload = {
-      snapshot,
-      sessionId,
-      ipAddress,
-      requestId,
+      session_id: sessionId,
+      request_id: requestId,
+      timestamp: snapshot.timestamp,
+      behavioral_data: snapshot.behavioralData,
+      behavior_sequence: snapshot.recent_actions ?? [],
+      device_fingerprint: snapshot.deviceFingerprint,
+      persona_features: (snapshot as any).persona_features, // 現状未使用だが互換性のため透過
+      context: snapshot.context,
+      ip_address: ipAddress,
       headers: Object.fromEntries(request.headers),
     };
 
