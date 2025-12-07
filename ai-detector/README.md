@@ -55,10 +55,28 @@ uv run pytest
 cd ai-detector
 uv run python training/cluster/create_models.py   # cluster モデル (KMeans/IsolationForest) の再生成
 uv run python training/persona/run_vectorization.py
-uv run python training/persona/run_pca_analysis.py
+ uv run python training/persona/run_pca_analysis.py
 ```
 
 その他のスクリプトも `uv run python <path/to/script>.py` で呼び出せます。
+
+## Cloud Run デプロイ手順（コマンド実行版）
+
+```
+# 1) イメージを Cloud Build でビルド＆Artifact Registry へプッシュ
+cd ai-detector
+gcloud builds submit --tag asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest
+
+# 2) Terraform で Cloud Run を反映
+cd infra
+terraform apply \
+  -var project_id=browser-agent-detector \
+  -var region=asia-northeast1 \
+  -var image=asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest
+```
+
+- apply 後に出力される `service_url` を、呼び出し元（例: Cloudflare Pages）側の `AI_DETECTOR_ENDPOINT_URL` に設定してください。
+- 公開呼び出し可（roles/run.invoker:allUsers）になっています。変更したい場合は `infra/main.tf` の IAM 設定を調整してください。
 
 ## ディレクトリ構成
 

@@ -1,0 +1,19 @@
+# build context slimming
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+.mypy_cache
+.pytest_cache
+
+# not needed in runtime image
+training
+tests
+data
+notebooks
+docs
+
+# OS / editor
+.DS_Store
+*.swp

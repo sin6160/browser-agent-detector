@@ -7,7 +7,16 @@ from pathlib import Path
 
 
 # プロジェクトルート（ai-detector ディレクトリ）
-BASE_DIR = Path(__file__).resolve().parents[1]
+# 環境変数指定 > カレントディレクトリ直下に models がある場合（Docker の /app など）> ファイル位置からの推定
+_env_base_dir = os.getenv("AI_DETECTOR_BASE_DIR")
+if _env_base_dir:
+    BASE_DIR = Path(_env_base_dir).expanduser().resolve()
+else:
+    _cwd_models = Path.cwd() / "models"
+    if _cwd_models.exists():
+        BASE_DIR = Path.cwd().resolve()
+    else:
+        BASE_DIR = Path(__file__).resolve().parents[1]
 
 # モデル配置ディレクトリ
 MODELS_DIR = BASE_DIR / "models"

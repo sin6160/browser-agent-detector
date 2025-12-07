@@ -34,6 +34,14 @@ logs/
 # Persona training assets
 ai-detector/training/persona/fonts/
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+crash.log
+
 # Database
 *.db
 *.sqlite
