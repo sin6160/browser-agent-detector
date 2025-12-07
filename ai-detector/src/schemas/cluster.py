@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class ClusterAnomalyRequest(BaseModel):
     """クラスタ異常検知リクエスト。"""
 
-    age: int = Field(..., ge=0, le=120, description="年齢")
-    gender: int = Field(..., ge=1, le=2, description="性別コード (1=男性, 2=女性)")
-    prefecture: int = Field(..., ge=1, le=47, description="都道府県コード")
-    product_category: int = Field(..., ge=1, le=11, description="商品カテゴリ")
-    quantity: int = Field(..., ge=1, description="購入個数")
-    price: int = Field(..., ge=0, description="単価 (円)")
-    total_amount: int = Field(..., ge=0, description="総額 (円)")
-    purchase_time: int = Field(..., ge=0, le=23, description="購入時間 (0-23)")
-    limited_flag: int = Field(..., ge=0, le=1, description="限定品フラグ")
-    payment_method: int = Field(..., ge=1, le=7, description="決済手段カテゴリ")
-    manufacturer: int = Field(..., ge=1, le=20, description="メーカーID")
+    age: Optional[int] = Field(None, description="年齢")
+    gender: Optional[int] = Field(None, description="性別コード (1=男性, 2=女性)")
+    prefecture: Optional[int] = Field(None, description="都道府県コード")
+    product_category: Optional[int] = Field(None, description="商品カテゴリ")
+    quantity: Optional[int] = Field(None, description="購入個数")
+    price: Optional[int] = Field(None, description="単価 (円)")
+    total_amount: Optional[int] = Field(None, description="総額 (円)")
+    purchase_time: Optional[int] = Field(None, description="購入時間 (0-23)")
+    limited_flag: Optional[int] = Field(None, description="限定品フラグ")
+    payment_method: Optional[int] = Field(None, description="決済手段カテゴリ")
+    manufacturer: Optional[int] = Field(None, description="メーカーID")
 
 
 class ClusterAnomalyResponse(BaseModel):

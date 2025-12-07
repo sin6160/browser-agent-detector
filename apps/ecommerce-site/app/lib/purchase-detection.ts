@@ -69,19 +69,20 @@ function generatePurchaseDataFromCart(cartItems: CartItem[]): {
     throw new Error('商品情報が見つかりません');
   }
 
-  // 総額を計算
+  // 総額・総数量（DB値をそのまま使用）
   const totalAmount = cartItems.reduce((sum, item) => {
-    return sum + (item.product?.price || 0) * item.quantity;
+    return sum + Number(item.product?.price || 0) * Number(item.quantity || 0);
   }, 0);
 
-  // 総数量を計算
-  const totalQuantity = cartItems.reduce((sum, item) => item.quantity, 0);
+  const totalQuantity = cartItems.reduce((sum, item) => {
+    return sum + Number(item.quantity || 0);
+  }, 0);
 
   // 限定品フラグ（カート内に限定品があるかチェック）
   const hasLimitedItem = cartItems.some(item => item.product?.is_limited);
 
   // 平均価格を計算（複数商品の場合）
-  const averagePrice = totalAmount / totalQuantity;
+  const averagePrice = totalQuantity > 0 ? totalAmount / totalQuantity : 0;
 
   console.log('商品カテゴリ:', {
     originalCategory: product.category,
@@ -89,14 +90,14 @@ function generatePurchaseDataFromCart(cartItems: CartItem[]): {
   });
 
   return {
-    product_category: product.category || 12,
+    product_category: Number(product.category),
     quantity: totalQuantity,
     price: Math.round(averagePrice), // 平均価格を使用
-    total_amount: totalAmount,
+    total_amount: Math.round(totalAmount),
     purchase_time: new Date().getHours(), // 現在時刻
     limited_flag: hasLimitedItem ? 1 : 0,
     payment_method: 3, // デフォルト決済方法（クレジットカード）
-    manufacturer: product.brand || 11
+    manufacturer: Number(product.brand)
   };
 }
 

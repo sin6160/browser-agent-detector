@@ -8,6 +8,7 @@ export const runtime = 'edge';
 export async function POST(request: NextRequest) {
   try {
     const { endpoint, apiKey } = getAIDetectorServerConfig();
+    const detectUrl = `${endpoint.replace(/\/$/, '')}/detect`;
     const snapshot = (await request.json()) as BehaviorSnapshot;
 
     const sessionId =
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       headers: Object.fromEntries(request.headers),
     };
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(detectUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
