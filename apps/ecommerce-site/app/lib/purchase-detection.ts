@@ -5,6 +5,7 @@
 
 import { User } from './auth';
 import { CartItem } from './cart';
+import { getAIDetectorServerConfig } from './server/ai-detector';
 
 // 検知サーバーのリクエスト形式
 export interface ClusterAnomalyRequest {
@@ -110,6 +111,9 @@ export async function detectPurchaseAnomaly(
   cartItems: CartItem[]
 ): Promise<ClusterAnomalyResponse> {
   try {
+    const { endpoint, apiKey } = getAIDetectorServerConfig();
+    const endpointUrl = `${endpoint.replace(/\/$/, '')}/detect_cluster_anomaly`;
+
     // ユーザー情報から検知用データを生成（DBから直接数値を取得）
     const age = user.age;
     const gender = user.gender;
@@ -132,10 +136,11 @@ export async function detectPurchaseAnomaly(
     });
 
     // 検知サーバーを呼び出し
-    const response = await fetch('http://localhost:8000/detect_cluster_anomaly', {
+    const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestData),
     });
