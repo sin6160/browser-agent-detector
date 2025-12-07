@@ -11,17 +11,27 @@ function updateSecurityBadgeFromResult(result: any) {
     return;
   }
 
+  // 現在のレスポンス仕様: browser_detection.score を人間らしさスコアとして扱う
   const humanScore =
-    typeof result?.humanScore === 'number'
-      ? result.humanScore
-      : typeof result?.human_score === 'number'
-        ? result.human_score
-        : null;
+    typeof result?.browser_detection?.score === 'number'
+      ? result.browser_detection.score
+      : null;
 
   const formatted = humanScore !== null ? humanScore.toFixed(3) : '-';
 
   try {
     localStorage.setItem('aiDetectorScore', formatted);
+
+    // クラスタリング関連（persona_detection があれば保存）
+    const persona = result?.persona_detection;
+    if (persona) {
+      if (typeof persona.anomaly_score === 'number') {
+        localStorage.setItem('clusteringScore', persona.anomaly_score.toFixed(3));
+      }
+      if (typeof persona.threshold === 'number') {
+        localStorage.setItem('clusteringThreshold', persona.threshold.toFixed(3));
+      }
+    }
   } catch {
     // ignore quota errors
   }
