@@ -63,20 +63,21 @@ uv run python training/persona/run_vectorization.py
 ## Cloud Run デプロイ手順（コマンド実行版）
 
 ```
+# プロジェクトを指定
+gcloud config set project browser-agent-detector
+
 # 1) イメージを Cloud Build でビルド＆Artifact Registry へプッシュ
 cd ai-detector
-gcloud builds submit --tag asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest
+gcloud builds submit \
+    --tag asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest
 
-# 2) Terraform で Cloud Run を反映
-cd infra
-terraform apply \
-  -var project_id=browser-agent-detector \
-  -var region=asia-northeast1 \
-  -var image=asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest
+# 2) Cloud Run へデプロイ
+gcloud run deploy ai-detector \
+    --image asia-northeast1-docker.pkg.dev/browser-agent-detector/ai-detector/ai-detector:latest \
+    --region asia-northeast1
 ```
 
-- apply 後に出力される `service_url` を、呼び出し元（例: Cloudflare Pages）側の `AI_DETECTOR_ENDPOINT_URL` に設定してください。
-- 公開呼び出し可（roles/run.invoker:allUsers）になっています。変更したい場合は `infra/main.tf` の IAM 設定を調整してください。
+- デプロイ完了後に表示される Service URL を、呼び出し元（例: Cloudflare Pages）側の `AI_DETECTOR_ENDPOINT_URL` に設定してください。
 
 ## ディレクトリ構成
 
@@ -231,7 +232,7 @@ FastAPI のエンドポイントテストは pytest で実行します。コマ�
 - `training/persona/vectorize_product_descriptions.py` など
   - 商品カテゴリ説明文をベクトル化して PCA で可視化する分析ツール群です。推論 API のモデル (`models/persona/*.pkl`) とは独立しているため、自動的にクラスタモデルへ反映されたりはしません。
 - `training/browser/train_lightgbm.py`
-  - `training/browser/data/{human,bot}` などに蓄積した行動ログ (JSON/JSONL) を glob で収集し、推論時と同じ特徴量群で LightGBM ブラウザモデルを再学習します。セッション単位でリークを避けた分割や `--auto-scale-pos-weight` によるクラス重み調整、`--lambda-l1/--lambda-l2` や `--feature-fraction` などの正則化パラメータを CLI から指定でき、成果物 (`training/browser/model/<timestamp>/lightgbm_model.txt`, `training_summary.json`) の保存までを一括で実行します。推論側で利用する正式ファイルは `models/browser/lightgbm_model.txt` へコピーしてください。optional フィールドが欠損しているレコードも Pydantic バリデーションを通して安全に処理されます。実行例:
+  - `training/browser/data/{human,bot}` などに蓄積した行動ログ (JSON/JSONL) を glob で収集し、推論時と同じ特徴量群で LightGBM ブラウザモデルを再学習します。セッション単位でリークを避けた GroupKFold 検証、`--auto-scale-pos-weight` によるクラス重み調整、`--lambda-l1/--lambda-l2` や `--feature-fraction` などの正則化パラメータを CLI から指定でき、成果物 (`training/browser/model/<timestamp>/lightgbm_model.pkl`, `lightgbm_metadata.json`, `training_summary.json`) の保存までを一括で実行します。推論側で利用する正式ファイルは `models/browser/lightgbm_model.pkl` と `models/browser/lightgbm_metadata.json` へコピーしてください。optional フィールドが欠損しているレコードも Pydantic バリデーションを通して安全に処理されます。実行例:
     ```bash
     cd ai-detector
     uv sync --group train

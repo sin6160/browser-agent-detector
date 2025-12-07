@@ -164,23 +164,28 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.log('注文作成完了', { orderId });
 
-    // セキュリティイベントをログに記録
-    logSecurityEvent({
-      sessionId: session.sessionId,
-      userId: session.data.userId,
-      ipAddress: request.ip || request.headers.get('x-forwarded-for') || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
-      requestPath: '/api/purchase/check',
-      requestMethod: 'POST',
-      securityMode: SECURITY_SUITE_LABEL,
-      actionTaken: 'allow',
-      detectionReasons: {
-        cluster_anomaly: false,
-        anomaly_score: detectionResult?.anomaly_score || null,
-        threshold: detectionResult?.threshold || null,
-      }
-    });
+    // セキュリティイベントをログに記録（ログ処理失敗は致命的ではないので握りつぶす）
+    try {
+      logSecurityEvent({
+        sessionId: session.sessionId,
+        userId: session.data.userId,
+        ipAddress: request.ip || request.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+        requestPath: '/api/purchase/check',
+        requestMethod: 'POST',
+        securityMode: SECURITY_SUITE_LABEL,
+        actionTaken: 'allow',
+        detectionReasons: {
+          cluster_anomaly: false,
+          anomaly_score: detectionResult?.anomaly_score || null,
+          threshold: detectionResult?.threshold || null,
+        }
+      });
+    } catch (logError) {
+      console.error('セキュリティログ記録エラー（継続）:', logError);
+    }
 
     // 成功レスポンスを作成
     const response = NextResponse.json({
@@ -210,6 +215,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('購入手続きエラー:', error);
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack);
+    }
 
     return NextResponse.json(
       { error: '購入手続き中にエラーが発生しました' },
