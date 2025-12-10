@@ -36,7 +36,7 @@ export function BehaviorTrackerProvider({
 }: BehaviorTrackerProviderProps) {
   const trackerRef = useRef<BehaviorTrackerFacade | null>(null);
 
-  if (typeof window !== 'undefined' && !trackerRef.current) {
+  if (!trackerRef.current) {
     const finalTransport =
       transport ?? new ProxyDetectionTransport({ endpoint: transportEndpoint });
     trackerRef.current = new BehaviorTrackerFacade({
