@@ -85,11 +85,8 @@ export async function createOrderFromCart(
 ): Promise<number | null> {
   const db = await openDb();
   try {
-    await db.exec('BEGIN');
-
     const cartItems = await getUserCart(userId);
     if (!cartItems.length) {
-      await db.exec('ROLLBACK');
       return null;
     }
 
@@ -97,7 +94,6 @@ export async function createOrderFromCart(
     let total = 0;
     for (const item of cartItems) {
       if (!item.product || item.product.stock_quantity < item.quantity) {
-        await db.exec('ROLLBACK');
         return null;
       }
       total += item.product.price * item.quantity;
@@ -118,7 +114,6 @@ export async function createOrderFromCart(
     );
     const orderId = result.lastID;
     if (!orderId) {
-      await db.exec('ROLLBACK');
       return null;
     }
 
@@ -148,11 +143,9 @@ export async function createOrderFromCart(
     // カートを空にする
     await db.run(`DELETE FROM cart_items WHERE user_id = ?`, [userId]);
 
-    await db.exec('COMMIT');
     return orderId;
   } catch (error) {
-    await db.exec('ROLLBACK');
-    console.error('createOrderFromCart error:', error);
+    console.error('createOrderFromCart error:', error instanceof Error ? `${error.message}\n${error.stack || ''}` : error);
     return null;
   } finally {
     await db.close();
