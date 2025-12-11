@@ -129,6 +129,8 @@ class PersonaPurchaseData(BaseModel):
     limited_flag: int
     payment_method: int
     manufacturer: int
+    pc1: Optional[float] = None
+    pc2: Optional[float] = None
 
 
 class PersonaFeatures(BaseModel):

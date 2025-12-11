@@ -6,28 +6,28 @@
   },
   "cluster_models": {
     "0": {
-      "n_features_in_": 8,
-      "threshold": 2.6237692574149207e-17,
+      "n_features_in_": 10,
+      "threshold": -4.2500725161431774e-17,
       "has_model": true
     },
     "1": {
-      "n_features_in_": 8,
-      "threshold": -2.0816681711721685e-17,
+      "n_features_in_": 10,
+      "threshold": -5.204170427930421e-17,
       "has_model": true
     },
     "2": {
-      "n_features_in_": 8,
-      "threshold": -1.6263032587282567e-17,
+      "n_features_in_": 10,
+      "threshold": 0.0,
       "has_model": true
     },
     "3": {
-      "n_features_in_": 8,
-      "threshold": 1.2739375526704677e-17,
+      "n_features_in_": 10,
+      "threshold": 2.710505431213761e-19,
       "has_model": true
     }
   },
-  "created_with": "scikit-learn 1.7.1",
+  "created_with": "scikit-learn 1.7.2",
   "python_version": "3.13",
-  "created_at": "2025-09-08T22:49:15.050020",
+  "created_at": "2025-12-11T19:57:39.315346",
   "note": "KMeansモデルは4クラスタ、異常検知モデルは各クラスタごとに作成"
 }

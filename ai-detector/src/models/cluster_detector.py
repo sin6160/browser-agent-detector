@@ -80,7 +80,14 @@ class ClusterAnomalyDetector:
         scaler = cluster_model["scaler"]
         isolation_forest = cluster_model["isolation_forest"]
 
-        purchase_array = np.array([purchase_data])
+        expected_features = getattr(scaler, "n_features_in_", len(purchase_data))
+        vector = list(purchase_data)
+        if len(vector) > expected_features:
+            vector = vector[:expected_features]
+        elif len(vector) < expected_features:
+            vector.extend([0.0] * (expected_features - len(vector)))
+
+        purchase_array = np.array([vector])
         scaled_data = scaler.transform(purchase_array)
 
         prediction = int(isolation_forest.predict(scaled_data)[0])
@@ -120,6 +127,8 @@ class ClusterAnomalyDetector:
                 data["limited_flag"],
                 data["payment_method"],
                 data["manufacturer"],
+                data.get("pc1", 0.0) or 0.0,
+                data.get("pc2", 0.0) or 0.0,
             )
 
             cluster_id = self.predict_cluster(age, gender, prefecture)

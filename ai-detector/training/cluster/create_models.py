@@ -21,6 +21,18 @@ from sklearn.preprocessing import StandardScaler
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_PATH = BASE_DIR / "training" / "cluster" / "data" / "ecommerce_clustering_data.csv"
 OUTPUT_DIR = BASE_DIR / "models" / "persona"
+PURCHASE_FEATURES = [
+    "product_category",
+    "quantity",
+    "price",
+    "total_amount",
+    "purchase_time",
+    "limited_flag",
+    "payment_method",
+    "manufacturer",
+    "pc1",
+    "pc2",
+]
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO)
@@ -63,12 +75,6 @@ def create_isolation_forest_models(df, kmeans):
     cluster_labels = kmeans.predict(cluster_features)
     df['cluster_id'] = cluster_labels
 
-    # 購入データの特徴量
-    purchase_features = [
-        'product_category', 'quantity', 'price', 'total_amount',
-        'purchase_time', 'limited_flag', 'payment_method', 'manufacturer'
-    ]
-
     cluster_models = {}
 
     for cluster_id in range(4):  # 4クラスタに戻す
@@ -79,7 +85,7 @@ def create_isolation_forest_models(df, kmeans):
             continue
 
         # 購入データを取得
-        X = cluster_data[purchase_features].values
+        X = cluster_data[PURCHASE_FEATURES].values
 
         # 標準化
         scaler = StandardScaler()
@@ -124,7 +130,7 @@ def create_metadata(kmeans, cluster_models, sklearn_version):
 
     for cluster_id, model_data in cluster_models.items():
         metadata["cluster_models"][str(cluster_id)] = {
-            "n_features_in_": 8,
+            "n_features_in_": len(PURCHASE_FEATURES),
             "threshold": float(model_data['threshold']),
             "has_model": True
         }
