@@ -119,6 +119,9 @@ class ClusterAnomalyDetector:
             prefecture = data["prefecture"]
 
             purchase_data = (
+                age,
+                gender,
+                prefecture,
                 data["product_category"],
                 data["quantity"],
                 data["price"],
