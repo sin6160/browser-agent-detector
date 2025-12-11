@@ -15,6 +15,8 @@ interface Product {
   is_limited: boolean;
   image_path: string | null;
   description: string | null;
+  pc1?: number | null;
+  pc2?: number | null;
 }
 
 export default function ProductsPage() {
@@ -150,33 +152,28 @@ export default function ProductsPage() {
 
   // カテゴリーフィルタリングのUI
   const categories = [
-    {id: 'electronics', name: '電子機器'},
-    {id: 'audio', name: 'オーディオ'},
-    {id: 'wearables', name: 'ウェアラブル'},
-    {id: 'gaming', name: 'ゲーム'},
-    {id: 'storage', name: 'ストレージ'},
-    {id: 'tv', name: 'テレビ'},
-    {id: 'camera', name: 'カメラ'},
-    {id: 'peripherals', name: '周辺機器'},
-    {id: 'gift-card', name: 'アマギフ'}
+    {id: '1', name: 'PC・スマートフォン'},
+    {id: '2', name: '家電'},
+    {id: '3', name: '本・雑誌'},
+    {id: '4', name: 'お菓子・食品'},
+    {id: '5', name: 'スポーツ用品'},
+    {id: '6', name: 'ペット用品'},
+    {id: '7', name: 'ファッション'},
+    {id: '8', name: '美容・健康'},
+    {id: '9', name: 'インテリア・家具'},
+    {id: '10', name: 'ゲーム・エンタメ'},
+    {id: '11', name: 'ギフト券'},
+    {id: '12', name: 'その他'}
   ];
+  const categoryNameMap = categories.reduce<Record<string, string>>((acc, curr) => {
+    acc[curr.id] = curr.name;
+    return acc;
+  }, {});
 
   return (
     <div className="max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">
-        {showLimited ? '限定商品コレクション' : category ? `${
-          {
-            'electronics': '電子機器',
-            'audio': 'オーディオ',
-            'wearables': 'ウェアラブル',
-            'gaming': 'ゲーム',
-            'storage': 'ストレージ',
-            'tv': 'テレビ',
-            'camera': 'カメラ',
-            'peripherals': '周辺機器',
-            'gift-card': 'アマギフ'
-          }[category] || category
-        }` : 'おすすめ商品一覧'}
+        {showLimited ? '限定商品コレクション' : category ? `${categoryNameMap[category] || category}` : 'おすすめ商品一覧'}
       </h1>
 
       {/* フィルタリングUI */}
@@ -273,9 +270,14 @@ export default function ProductsPage() {
 
                 <div className="flex justify-between items-center mb-1">
                   <p className="text-gray-500 text-xs">商品ID: {product.id}</p>
-                  <p className="text-gray-500 text-xs">{product.brand}</p>
+                  <p className="text-gray-500 text-xs">
+                    {categoryNameMap[String(product.category)] || 'その他'}
+                  </p>
                 </div>
-                <p className="text-gray-800 font-bold text-base mb-2">¥{product.price.toLocaleString()}</p>
+                <p className="text-gray-800 font-bold text-base mb-1">¥{product.price.toLocaleString()}</p>
+                {product.description && (
+                  <p className="text-xs text-gray-700 mb-2 line-clamp-3 h-12">{product.description}</p>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">

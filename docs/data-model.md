@@ -5,46 +5,60 @@
 ## 1. 検知エンジン (ai-detector)
 
 ### 1.1 統合入力
-`POST /detect` が受け取る `UnifiedDetectionRequest` は下表のブロックで構成されます。`browser-agent-sdk/packages/agent-core` の `BehaviorTrackerFacade` が 5 秒ごとに収集したデータを Next.js API から FastAPI へ渡す想定です。
+`browser-agent-sdk/packages/agent-core` の `BehaviorTrackerFacade` がブラウザ操作・指紋・文脈情報を 5 秒ごと（`captureCriticalAction()` 呼び出し時は即時）に `BehaviorSnapshot` として収集し、Next.js Edge API `/api/security/aidetector/detect` で snake_case へ変換した上で FastAPI `POST /detect` へ転送します（`UnifiedDetectionRequest` は `extra="allow"` のため `ip_address` やヘッダーも保持されます）。
 
 | ブロック | 主なフィールド | 備考 |
 | --- | --- | --- |
-| `behavioral_data` | `mouse_movements`, `click_patterns`, `keystroke_dynamics`, `scroll_behavior`, `page_interaction` | クライアント側で集計済み統計値。`docs/browser-detection-data.md` を参照。 |
-| `recent_actions` (`behavior_sequence`) | `action`, `timestamp`, `x`, `y`, `velocity`, `deltaX`, `deltaY` | LightGBM 用の行動リズム・時間差を算出。現在の実装では直近 6 件を送信。 |
-| `device_fingerprint` | `user_agent`, `browser_info.*`, `canvas_fingerprint`, `webgl_fingerprint` | `FeatureExtractor` が `is_mobile` を求める。 |
+| `behavioral_data` | `mouse_movements[{timestamp,x,y,velocity}]`（直近200件）、`click_patterns{avg_click_interval,click_precision,double_click_rate}`, `keystroke_dynamics{typing_speed_cpm,key_hold_time_ms,key_interval_variance}`, `scroll_behavior{scroll_speed,scroll_acceleration,pause_frequency}`, `page_interaction{session_duration_ms,page_dwell_time_ms,first_interaction_delay_ms,navigation_pattern,form_fill_speed_cpm,paste_ratio}` | `EventCollector` がマウス/クリック/キー/スクロール/ペースト/フォーム操作をバッファ（例: mouse 1000 件）し、`MetricsAggregator` が平均間隔・精度・速度・加速度・フォーム入力速度（focus 数/分）・`paste_ratio`（pasteEvents/inputEvents）などを算出。`session_duration_ms` と `page_dwell_time_ms` はページロードからの経過時間。 |
+| `recent_actions` (`behavior_sequence`) | `action`, `timestamp`（+ 任意 `metadata`） | 直近 120 件を保持。`mouse_move` は約 5Hz でダウンサンプルし、`click`、`paste`、`focus`/`blur`、`visibilitychange` (`visible`/`hidden`)、タイマー起動時の `TIMED_SHORT|MEDIUM|LONG` などを記録。時刻差やアクション頻度特徴量に利用。 |
+| `device_fingerprint` | `screen_resolution`, `timezone`, `user_agent`, `user_agent_hash`, `user_agent_brands`, `vendor`, `app_version`, `platform`, `browser_info.*`, `canvas_fingerprint`, `webgl_fingerprint`, `http_signature_state`, `anti_fingerprint_signals[]`, `network_fingerprint_source`, `tls_ja4?`, `http_signature?` | `FingerprintRegistry` が UA 判定と canvas/webGL ハッシュを生成し、`navigator.webdriver` 等の異常シグナル（`navigator_webdriver_true`, `headless_user_agent`, `plugins_empty` など）を `anti_fingerprint_signals` に格納。TLS/HTTP 指紋は未設定時 `missing/unknown` として扱う。 |
 | `persona_features` (任意) | `age`, `gender`, `prefecture`, `purchase.*` | クラスタ異常検知の入力。 |
-| `contextData` | `actionType`, `url`, `page_load_time`, `first_interaction_delay` 等 | トレーニングログの分析・デバッグ用途。 |
+| `context` (`contextData`) | `action_type`, `url`, `siteId`, `pageLoadTime`, `firstInteractionTime`, `firstInteractionDelay`, `userAgent`, `locale`, `extra` | `BehaviorTracker` が計測時の文脈を付与。`action_type` は `PERIODIC_SNAPSHOT`/`TIMED_SHORT`/`PAGE_BEFORE_UNLOAD` などに変換され、特徴量の one-hot に使用。 |
+| `ip_address` / `headers` | Edge API が追加 | FastAPI スキーマで無視されるが、トレーニングログや将来のモデル拡張用に保持。 |
+
+### 1.1.1 クライアントで取得している主なブラウザ操作
+- **マウス**: `mousemove` を 50ms スロットルで記録（速度と座標を保持、直近1000件）。約 4 回に 1 回を `recent_actions` に追加。
+- **クリック**: ターゲット要素・ダブルクリック判定を保持し、全クリック数とダブルクリック数から精度・二重率を算出。
+- **キー入力**: パスワード欄を除外し、修飾キー判定とホールド時間を保持。タイピング速度（文字/分）とキー間隔分散を算出。
+- **スクロール**: 100ms スロットルで速度と加速度を算出し、停止回数/総スクロール数から `pause_frequency` を計算。
+- **ペースト/フォーム操作**: `beforeinput` で paste を検知、input/form インタラクション回数から `form_fill_speed_cpm` と `paste_ratio` を計算。focus/blur は `recent_actions` に記録。
+- **デバイス指紋**: UA/ブランド/ベンダ/OS/プラットフォームに加えて、canvas/webGL ハッシュ、`anti_fingerprint_signals`（webdriver, headless UA, plugins 空, mobile UA 無タッチなど）を取得。TLS/HTTP 署名値は未実装だが、`tls_ja4`/`http_signature` フィールドと「missing」フラグ（特徴量）が用意されている。
 
 ### 1.2 LightGBM 特徴量
-`services/feature_extractor.py` が以下 26 個の特徴量を計算し、`models/lightgbm_loader.py` が定義する `DEFAULT_FEATURE_NAMES` 順に Booster へ渡します。欠損値は 0 で埋めます。
+`services/feature_extractor.py` は行動時系列・集計指標・デバイス指紋から多数の特徴量を生成し、`ai-detector/models/browser/lightgbm_metadata.json` で定義された 28 個を LightGBM へ入力します（欠損は 0 埋め、`context.action_type` を one-hot 化）。現在の Booster が参照する特徴量は次の通りです。
 
 ```
-total_duration_ms
-first_interaction_delay_ms
-avg_time_between_actions
-velocity_mean
-velocity_max
-velocity_std
-action_count_mouse_move
-action_count_click
-action_count_keystroke
-action_count_scroll
-action_count_idle
-is_mobile
-click_avg_click_interval
-click_click_precision
-click_double_click_rate
-keystroke_typing_speed
-keystroke_key_hold_time
-keystroke_key_interval_variance
+mouse_movements_count
+mouse_velocity_mean
+mouse_velocity_std
+mouse_velocity_max
+click_avg_interval
+click_precision
+click_double_rate
+keystroke_speed
+keystroke_hold
+keystroke_interval_var
 scroll_speed
-scroll_acceleration
-pause_frequency
-page_session_duration
-page_page_dwell_time
-page_first_interaction_delay
+scroll_acc
+scroll_pause
+page_session_duration_ms
+page_dwell_time_ms
+page_first_interaction_delay_ms
 page_form_fill_speed
+page_paste_ratio
+seq_total_actions
+seq_count_mouse_move
+seq_count_click
+seq_count_keystroke
+seq_count_scroll
+seq_count_TIMED_SHORT
+seq_count_TIMED_LONG
+action_type_PAGE_BEFORE_UNLOAD
+action_type_PERIODIC_SNAPSHOT
+action_type_TIMED_SHORT
 ```
+
+- 上記以外にも `time_between_actions_*` や `mouse_path_length`、各アクションの毎秒レート、`fingerprint_http_signature_missing` / `fingerprint_tls_ja4_missing` など多数の補助特徴が `features_extracted` に含まれ、トレーニングログや将来のモデル再学習時に活用できます。
 
 ### 1.3 モデル配置
 
@@ -138,7 +152,8 @@ page_form_fill_speed
 - ファイルベースのログディレクトリ `apps/ecommerce-site/logs/` に `security.log`, `app.log`, `access.log` を出力。
 - `localStorage` で `recaptchaScore`, `aiDetectorScore`, `clusteringScore`, `clusteringThreshold` などのオーバーレイスコアを保持。
 
-### 2.2 テーブル定義 (SQLite)
+### 2.2 テーブル定義 (Cloudflare D1 / SQLite)
+`apps/ecommerce-site/sql/001_schema.sql` の D1 マイグレーションと、ローカル用の `scripts/init-db.js` が同じ構成を生成します。主なテーブルは以下のとおりです。
 
 #### `users`
 ```sql
@@ -150,13 +165,6 @@ CREATE TABLE users (
   gender INTEGER,
   prefecture INTEGER,
   occupation VARCHAR(50),
-  full_name TEXT,
-  phone_number VARCHAR(20),
-  address_line1 TEXT,
-  address_line2 TEXT,
-  address_city TEXT,
-  address_prefecture TEXT,
-  postal_code VARCHAR(20),
   member_rank VARCHAR(20) DEFAULT 'bronze',
   registration_date DATETIME DEFAULT CURRENT_TIMESTAMP,
   total_orders INTEGER DEFAULT 0,
@@ -179,9 +187,12 @@ CREATE TABLE products (
   is_limited BOOLEAN DEFAULT FALSE,
   image_path VARCHAR(255),
   description TEXT,
+  pc1 REAL,
+  pc2 REAL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
+`pc1` / `pc2` は商品特徴量の主成分などを格納するための追加カラム（シードデータでも使用）。
 
 #### `orders`
 ```sql
@@ -191,8 +202,8 @@ CREATE TABLE orders (
   total_amount DECIMAL(10,2) NOT NULL,
   status VARCHAR(20) DEFAULT 'pending',
   security_mode VARCHAR(20),
-  bot_score FLOAT,
-  security_action VARCHAR(20),
+  bot_score FLOAT NULL,
+  security_action VARCHAR(20) NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -214,17 +225,17 @@ CREATE TABLE order_items (
 CREATE TABLE security_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id VARCHAR(64) NOT NULL,
-  user_id INTEGER REFERENCES users(id),
+  user_id INTEGER NULL REFERENCES users(id),
   ip_address VARCHAR(45),
   user_agent TEXT,
   request_path VARCHAR(255),
   request_method VARCHAR(10),
   security_mode VARCHAR(20) NOT NULL,
-  bot_score FLOAT,
-  risk_level VARCHAR(20),
+  bot_score FLOAT NULL,
+  risk_level VARCHAR(20) NULL,
   action_taken VARCHAR(20) NOT NULL,
-  detection_reasons TEXT,
-  processing_time_ms INTEGER,
+  detection_reasons TEXT NULL,
+  processing_time_ms INTEGER NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -236,9 +247,21 @@ CREATE TABLE cart_items (
   user_id INTEGER REFERENCES users(id),
   product_id INTEGER REFERENCES products(id),
   quantity INTEGER NOT NULL,
-  recipient_email VARCHAR(255),
+  recipient_email VARCHAR(255) NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### `sessions`
+```sql
+CREATE TABLE sessions (
+  session_id VARCHAR(64) PRIMARY KEY,
+  user_id INTEGER NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  updated_at INTEGER
 );
 ```
 

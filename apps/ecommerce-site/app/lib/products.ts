@@ -11,6 +11,8 @@ export interface Product {
   is_limited: boolean;
   image_path: string | null;
   description: string | null;
+  pc1?: number | null;
+  pc2?: number | null;
   created_at: string;
 }
 

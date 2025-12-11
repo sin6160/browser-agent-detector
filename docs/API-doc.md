@@ -1,6 +1,6 @@
 # AIエージェント検知 API 仕様書
 
-FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API の最新版です。ローカル開発では `http://localhost:8000` を基点とし、現在は認可を要求していません。`Content-Type: application/json` を付与して直接呼び出してください。
+FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API の最新版です。ローカル開発では `http://localhost:8000` を基点とし、現在は認可を要求していません（Edge 側から `Authorization: Bearer <token>` を付けていますがサーバー側では未検証）。`Content-Type: application/json` を付与して直接呼び出してください。
 
 ## 1. エンドポイント一覧
 
@@ -14,10 +14,10 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 ## 2. POST /detect
 
 ### 2.1 概要
-`UnifiedDetectionRequest` を入力し、LightGBM (ブラウザ行動) と KMeans + IsolationForest (ペルソナ) を組み合わせた最終判定を返します。`persona_features` を省略するとブラウザ行動のみを評価します。推論結果は `utils/training_logger.log_detection_sample` により（必要に応じて）JSONL へ保存されます。
+`UnifiedDetectionRequest` を入力し、LightGBM (ブラウザ行動) と KMeans + IsolationForest (ペルソナ) を組み合わせた最終判定を返します。`persona_features` を省略するとブラウザ行動のみを評価します。推論結果は `utils/training_logger.log_detection_sample` により（`AI_DETECTOR_TRAINING_LOG=1` 時）JSONL へ保存されます。
 
 ### 2.2 リクエストボディ
-ブラウザ SDK (`browser-agent-sdk/packages/agent-core`) はすべてのフィールドを snake_case で送信し、`behavior_sequence` が正式名称です（`recent_actions` は旧エイリアスですが後方互換のために受け付けます）。`context` にはページ遷移や初回操作までの遅延などが含まれ、Next.js の `/api/security/aidetector/detect` では camelCase → snake_case 変換済みの JSON が FastAPI へ渡ります。
+ブラウザ SDK (`browser-agent-sdk/packages/agent-core`) はすべてのフィールドを snake_case で送信し、`behavior_sequence` が正式名称です（`recent_actions` は後方互換で受け付けます）。`context` にはページ遷移や初回操作までの遅延などが含まれ、Next.js の `/api/security/aidetector/detect` では camelCase → snake_case 変換済みの JSON が FastAPI へ渡ります。スキーマは `extra="allow"` のため `ip_address` や HTTP ヘッダーなど任意キーも保持されます。
 
 ```json
 {
@@ -76,10 +76,10 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
     "canvas_fingerprint": "canvas-hash",
     "webgl_fingerprint": "webgl-hash",
     "http_signature_state": "unknown",
-    "anti_fingerprint_signals": ["no_debug_info"],
+    "anti_fingerprint_signals": ["navigator_webdriver_true"],
     "network_fingerprint_source": "client",
-    "tls_ja4": "ja4_hash",
-    "http_signature": "sha256(cf-ray:...)"
+    "tls_ja4": null,
+    "http_signature": null
   },
   "persona_features": {
     "age": 35,
@@ -97,25 +97,25 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
     }
   },
   "context": {
-    "ip_address": "203.0.113.10",
     "current_page": "/products/limited-01",
-    "action_type": "checkout",
+    "action_type": "PERIODIC_SNAPSHOT",
     "page_load_time": 1703123456123,
     "first_interaction_time": 1703123456363,
     "first_interaction_delay": 240,
     "site_id": "apps/ecommerce-site"
-  }
+  },
+  "ip_address": "203.0.113.10",
+  "headers": { "user-agent": "..." }
 }
 ```
 
-- `request_id`: フロントで発行した ID をそのまま返す。FastAPI 側で UUID を生成していた旧挙動から置き換わっている。
-- `behavioral_data`: `docs/browser-detection-data.md` 準拠。`FeatureExtractor` が 26 個の LightGBM 特徴量（`keystroke_typing_speed_cpm`, `page_session_duration_ms`, `page_paste_ratio` など）へマッピングする。
-- `behavior_sequence`: ミリ秒精度のイベント列。旧フィールド名 `recent_actions` も受付可。
-- `device_fingerprint`: `browser_info.*` に加えて `canvas_fingerprint` / `webgl_fingerprint` / `http_signature_state` / `anti_fingerprint_signals` / `network_fingerprint_source` / `tls_ja4` / `http_signature` を格納する。TLS/JA4 は Next.js や CDN 側で取得できる場合のみ付与し、未収集時は `http_signature_state: "missing"` を送る。
+- `session_id` / `request_id`: 省略時は FastAPI 側で UUID を補完します。
+- `behavioral_data`: `docs/browser-detection-data.md` 準拠。`FeatureExtractor` が 28 個の LightGBM 特徴量（`mouse_movements_count`, `page_paste_ratio`, `seq_count_TIMED_SHORT`, `action_type_*` など）へマッピングします。
+- `behavior_sequence`: ミリ秒精度のイベント列。`recent_actions` も受付可。
+- `device_fingerprint`: Canvas/WebGL ハッシュと anti-fingerprint シグナルを含みます。TLS/HTTP 署名は現状クライアントでは未収集のため多くの環境で `null`/`missing` となります。
 - `persona_features`: 会員プロフィール + 最新購入情報。`purchase.price` 等は数値で送信する。
-- `context`: 任意のメタ情報。現在はログ分析・トレーニングログでのみ使用する。
-
-> **補足:** 第三者サイトでも `@browser-agent-sdk/node-bridge` 内の `extractNetworkFingerprint()` を呼び出すだけで TLS/JA4 と HTTP 署名を生成できるが、CDN 終端等で情報が取得できない場合は空のままでも構わない。その場合は `http_signature_state: 'missing'` をセットし、TLS フィンガープリントは別チャネル（Cloudflare Workers 等）で計測する。
+- `context`: 任意のメタ情報。`action_type` は `PERIODIC_SNAPSHOT` / `TIMED_SHORT|MEDIUM|LONG` / `PAGE_BEFORE_UNLOAD` などを one-hot 化して特徴量に利用します。
+- `ip_address` / `headers`: Edge API が付与する任意フィールド。スキーマ外ですがログ/分析用途で保持されます。
 
 ### 2.3 レスポンス
 
@@ -152,9 +152,9 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 
 ### 2.4 判定ロジック
 - `score` / `raw_prediction` は LightGBM Booster の出力で、`score < 0.5` なら `browser_detection.is_bot=true`。
-- `persona_features` が存在するときはクラスタ異常判定を追加し、`persona_detection.is_anomaly=true` (=`prediction == -1`) の場合 `final_decision.recommendation` は `challenge`、`reason` は `persona_anomaly` となる。
+- `persona_features` が存在するときはクラスタ異常判定を追加し、`persona_detection.is_anomaly=true` (=`prediction == -1`) の場合 `final_decision.recommendation` は `challenge`、`reason` は `persona_anomaly`。
 - 両方とも問題なければ `recommendation=allow`。
-- 成功レスポンスには常に `request_id` を含め、`logs/training/*.jsonl` や EC サイトの `security_logs` と突合可能にする。
+- 成功レスポンスには常に `request_id` を含み、`training/browser/data/*.jsonl` や EC サイトの `security_logs` と突合可能です。
 
 ## 3. POST /detect_cluster_anomaly
 
@@ -196,7 +196,7 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 }
 ```
 
-`is_anomaly` は `prediction == -1` のときのみ `true` になります。`threshold` は観測用の値であり、現在の実装では判定閾値としては使用していません。
+`is_anomaly` は `prediction == -1` のときのみ `true` になります。`threshold` は観測用の値であり、現在の実装では判定閾値としては使用していません（`is_anomaly` は IsolationForest の予測結果に依存）。
 
 ## 4. GET /
 
@@ -208,12 +208,12 @@ FastAPI 製の検知サーバー (`ai-detector/`) で提供している REST API
 
 ## 5. GET /health
 
-LightGBM とクラスタモデルのロード状態を返します。どちらかが失敗すると `status: "degraded"` になり、`model_loaded` / `cluster_model_loaded` の真偽値で切り分けできます。
+LightGBM とクラスタモデルのロード状態を返します。どちらかが失敗すると `status: "degraded"` になり、`lightgbm_loaded` / `cluster_model_loaded` の真偽値で切り分けできます。
 
 ```json
 {
   "status": "healthy",
-  "model_loaded": true,
+  "lightgbm_loaded": true,
   "cluster_model_loaded": true,
   "timestamp": 1703123456789
 }
@@ -237,6 +237,7 @@ FastAPI 標準 (`{"detail": "..."}`) のエラー形式を採用しています�
 どの例外もアプリケーションログに記録されるため、詳細調査は `ai-detector` のログを参照してください。
 
 ## 7. トレーニングログ / 環境変数
-- `AI_DETECTOR_TRAINING_LOG=1` を設定すると `training/browser/data/<label>/behavioral_YYYYMMDD.jsonl` が生成され、`request`, `browser_result`, `persona_result`, `final_decision` を 1 行 JSON で追記します。`<label>` には `AI_DETECTOR_LOG_LABEL` を指定できます（例: `human` / `bot`）。
-- `AI_DETECTOR_TRAINING_LOG_PATH` で保存先を上書き可能 (相対パスは `ai-detector/` からの相対)。
+- `AI_DETECTOR_TRAINING_LOG=1`: `training/browser/data/<label>/behavioral_YYYYMMDD.jsonl` に `request`, `browser_result`, `persona_result`, `final_decision` を 1 行 JSON で追記します。`<label>` は `AI_DETECTOR_LOG_LABEL`（`human` / `bot` / `unspecified`）で決定。
+- `AI_DETECTOR_TRAINING_LOG_PATH`: ログ出力先を上書き（相対パスは `ai-detector/` 基準）。
+- `AI_DETECTOR_DISABLE_BROWSER_MODEL=1`: ブラウザ LightGBM を無効化し、予測時に例外を送出します（動作確認・他モジュール開発用のスイッチ）。
 - モデルファイルは `models/browser/model.txt`, `models/persona/*.pkl`, `models/persona/model_metadata.json` に配置し、起動時に読み込まれます。見つからない場合は 500 応答と共に詳細パスを返します。

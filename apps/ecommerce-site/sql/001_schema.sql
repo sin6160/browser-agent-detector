@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS products (
   is_limited BOOLEAN DEFAULT FALSE,
   image_path VARCHAR(255),
   description TEXT,
+  pc1 REAL,
+  pc2 REAL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
