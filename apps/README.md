@@ -7,7 +7,7 @@
 ```
 apps/
 ├── ecommerce-site/        # 会員制ECサイト（Next.js 14）
-├── leak-receiver/         # 機密情報受信サイト（Next.js 16, app router）
+├── leak-receiver/         # 個人メモ風の受信サイト（Next.js 14, app router）
 ├── gcloud-key.json        # reCAPTCHA Enterprise 接続用のサービスアカウント鍵（取り扱いに注意）
 └── README.md
 ```
@@ -45,11 +45,11 @@ pnpm run dev        # http://localhost:3002 で起動
 
 ## 機密情報受信サイト (leak-receiver)
 
-シナリオB向けの簡易受信サイト。アカウント情報を入力またはテキスト添付で送信し、受信履歴を一覧表示します。データはコンテナ内 `/data/records.json` に簡易保存（再起動でクリア）。
+シナリオB向けの簡易受信サイト。メモを貼り付けて保存し、受信履歴を一覧表示します。データはコンテナ内 `/data/records.json` に簡易保存（再起動でクリア）。
 
 - ポート: 3000
 - 主な機能:
-  - `/` 入力フォーム（氏名/住所/電話/職業/年齢/クレカ番号任意 + テキスト/ファイル）
+  - `/` メモ貼り付けフォーム（サイドバーに個人メモ風コンテンツ）
   - `POST /api/upload` 受信保存
   - `GET /api/records` JSON 参照
   - `/history` 履歴テーブル表示
@@ -64,6 +64,31 @@ pnpm dev   # http://localhost:3000
 
 動作確認:
 ```bash
-curl -F "name=山田太郎" -F "address=東京都..." -F "text=氏名: 山田太郎" http://localhost:3000/api/upload
+curl -F "text=今日のメモ: 買い物リストを更新" http://localhost:3000/api/upload
 curl http://localhost:3000/api/records | jq
 ```
+
+### Cloud Run へのビルド・デプロイ
+
+```bash
+# プロジェクトを指定
+gcloud config set project browser-agent-detector
+
+# （初回のみ）Artifact Registry リポジトリ作成
+gcloud artifacts repositories create memo \
+  --repository-format=docker \
+  --location=asia-northeast1 \
+  --description="memo images"
+
+# コンテナをビルド＆Artifact Registryにプッシュ
+cd apps/leak-receiver
+gcloud builds submit --tag asia-northeast1-docker.pkg.dev/browser-agent-detector/memo/memo:latest
+
+# Cloud Run へデプロイ（認証不要公開の例）
+gcloud run deploy memo \
+  --image asia-northeast1-docker.pkg.dev/browser-agent-detector/memo/memo:latest \
+  --region asia-northeast1 \
+  --allow-unauthenticated
+```
+
+デプロイ後に表示される Service URL を、`docs/prompts.md` の「xx」に差し替えてください（例: `https://<service-url>/api/upload`）。***
