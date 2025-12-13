@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserById } from '@/app/lib/auth';
 import { getUserOrdersWithItems } from '@/app/lib/orders';

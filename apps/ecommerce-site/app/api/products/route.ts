@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllProducts, addProduct } from '@/app/lib/products';
 import { logSecurityEvent } from '@/app/lib/logger';

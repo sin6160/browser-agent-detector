@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -12,7 +16,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -21,15 +25,37 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@browser-agent-sdk/agent-core": ["../browser-agent-sdk/packages/agent-core/src"],
-      "@browser-agent-sdk/agent-core/*": ["../browser-agent-sdk/packages/agent-core/src/*"],
-      "@browser-agent-sdk/react-adapter": ["../browser-agent-sdk/packages/adapters/react/src"],
-      "@browser-agent-sdk/node-bridge": ["../browser-agent-sdk/packages/node-bridge/src"],
-      "@browser-agent-sdk/vanilla-adapter": ["../browser-agent-sdk/packages/adapters/vanilla/src"],
-      "@browser-agent-sdk/web-snippet": ["../browser-agent-sdk/packages/web-snippet/src"]
+      "@/*": [
+        "./*"
+      ],
+      "@browser-agent-sdk/agent-core": [
+        "../browser-agent-sdk/packages/agent-core/src"
+      ],
+      "@browser-agent-sdk/agent-core/*": [
+        "../browser-agent-sdk/packages/agent-core/src/*"
+      ],
+      "@browser-agent-sdk/react-adapter": [
+        "../browser-agent-sdk/packages/adapters/react/src"
+      ],
+      "@browser-agent-sdk/node-bridge": [
+        "../browser-agent-sdk/packages/node-bridge/src"
+      ],
+      "@browser-agent-sdk/vanilla-adapter": [
+        "../browser-agent-sdk/packages/adapters/vanilla/src"
+      ],
+      "@browser-agent-sdk/web-snippet": [
+        "../browser-agent-sdk/packages/web-snippet/src"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

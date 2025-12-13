@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { registerUser } from '@/app/lib/auth';
 import { logSecurityEvent } from '@/app/lib/logger';

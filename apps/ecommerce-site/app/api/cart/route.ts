@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserCart, addToCart, updateCartItemQuantity, updateCartItemRecipientEmail, removeFromCart, clearCart } from '@/app/lib/cart';
 import { getSession } from '@/app/lib/session';
