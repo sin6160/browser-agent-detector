@@ -73,16 +73,23 @@ export default function NavigationHeader() {
         console.error('Account navigation detection error:', error);
       }
 
+      // スコアが取れなかった場合はバッジ（localStorage）を信頼し、数値でなければリダイレクトしない
+      if (!Number.isFinite(score) && typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('aiDetectorScore');
+        const parsed = stored ? Number.parseFloat(stored) : NaN;
+        score = Number.isFinite(parsed) ? parsed : null;
+      }
+
       const redirectToOtm =
-        typeof score === 'number' ? score <= OTM_REDIRECT_THRESHOLD : false;
+        Number.isFinite(score) && (score as number) <= OTM_REDIRECT_THRESHOLD;
       const target = redirectToOtm ? '/account/otm' : '/account';
 
       try {
         if (typeof window !== 'undefined') {
-          if (redirectToOtm && typeof score === 'number') {
+          if (redirectToOtm && Number.isFinite(score)) {
             sessionStorage.setItem(
               'accountNavAiScore',
-              JSON.stringify({ score, ts: Date.now() })
+              JSON.stringify({ score: Number(score), ts: Date.now() })
             );
           } else {
             sessionStorage.removeItem('accountNavAiScore');
