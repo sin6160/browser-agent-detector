@@ -23,6 +23,7 @@ AI エージェントによるブラウザ自動操作は、プロンプトイ�
 
 - **AI 検知 API (`ai-detector/`)**: FastAPI + LightGBM + KMeans/IsolationForest による推論サービス。`POST /detect` と `POST /detect_cluster_anomaly` を提供し、`docs/API-doc.md` に仕様を掲載しています。
 - **検証用 EC サイト (`apps/ecommerce-site/`)**: Next.js 14 + SQLite の会員制サイト。`BehaviorTrackerProvider` がブラウザ操作を収集し、reCAPTCHA Enterprise と AI スコアバッジを統合します。
+- **機密情報受信サイト (`apps/leak-receiver/`)**: シナリオB向けの簡易受信先。Next.js 16 (App Router) でフォーム投稿/ファイル添付を受け取り、`/history` で最新200件をJSONベースで閲覧できます。
 - **共通ドキュメント**: 技術要件やデータモデルは `docs/` 配下（`requirements.md`, `data-model.md`, `browser-detection-data.md`）にまとめています。
 
 ## 主な機能
@@ -88,6 +89,15 @@ pnpm run dev -p 3002
 ```
 - reCAPTCHA/Google Cloud 設定は `.env.local` や `gcloud-key.json` を参照
 - セキュリティ API: `/api/security/aidetector/*`, `/api/security/recaptcha/verify`
+
+### 機密情報受信サイト（シナリオB送信先）
+```bash
+cd apps/leak-receiver
+pnpm install
+pnpm dev              # http://localhost:3000
+```
+- `POST /api/upload` で `multipart/form-data` や JSON を受信し、`/data/records.json`（最新200件）に保存します。
+- `GET /api/records` や `/history` で受信履歴を確認できます。Cloud Run へのデプロイは `gcloud builds submit` → `gcloud run deploy` のフローで実施してください。
 
 手順や構成ファイルの詳細は各サブディレクトリの README/ドキュメントを確認してください。
 
