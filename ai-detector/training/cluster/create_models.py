@@ -21,6 +21,21 @@ from sklearn.preprocessing import StandardScaler
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_PATH = BASE_DIR / "training" / "cluster" / "data" / "ecommerce_clustering_data.csv"
 OUTPUT_DIR = BASE_DIR / "models" / "persona"
+PURCHASE_FEATURES = [
+    "age",
+    "gender",
+    "prefecture",
+    "product_category",
+    "quantity",
+    "price",
+    "total_amount",
+    "purchase_time",
+    "limited_flag",
+    "payment_method",
+    "manufacturer",
+    "pc1",
+    "pc2",
+]
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO)
@@ -63,12 +78,6 @@ def create_isolation_forest_models(df, kmeans):
     cluster_labels = kmeans.predict(cluster_features)
     df['cluster_id'] = cluster_labels
 
-    # 購入データの特徴量
-    purchase_features = [
-        'product_category', 'quantity', 'price', 'total_amount',
-        'purchase_time', 'limited_flag', 'payment_method', 'manufacturer'
-    ]
-
     cluster_models = {}
 
     for cluster_id in range(4):  # 4クラスタに戻す
@@ -79,7 +88,7 @@ def create_isolation_forest_models(df, kmeans):
             continue
 
         # 購入データを取得
-        X = cluster_data[purchase_features].values
+        X = cluster_data[PURCHASE_FEATURES].values
 
         # 標準化
         scaler = StandardScaler()
@@ -87,20 +96,21 @@ def create_isolation_forest_models(df, kmeans):
 
         # IsolationForestモデルを作成
         isolation_forest = IsolationForest(
-            contamination=0.1,  # 10%を異常とする
+            contamination=0.15,  # 異常寄りに傾けて境界を厳しめに
             random_state=42,
-            n_estimators=100
+            n_estimators=200
         )
         isolation_forest.fit(X_scaled)
 
-        # 閾値を計算（decision_functionの10%分位点）
+        # 閾値を計算（decision_functionの20%分位点でやや厳しめ）
         scores = isolation_forest.decision_function(X_scaled)
-        threshold = np.percentile(scores, 10)
+        threshold = np.percentile(scores, 20)
 
         cluster_models[cluster_id] = {
             'scaler': scaler,
             'isolation_forest': isolation_forest,
-            'threshold': threshold
+            'threshold': threshold,
+            'seen_categories': sorted(cluster_data["product_category"].unique().tolist()),
         }
 
         logger.info(f"クラスタ {cluster_id} のモデルを作成しました: {len(cluster_data)}件, 閾値={threshold:.6f}")
@@ -124,9 +134,10 @@ def create_metadata(kmeans, cluster_models, sklearn_version):
 
     for cluster_id, model_data in cluster_models.items():
         metadata["cluster_models"][str(cluster_id)] = {
-            "n_features_in_": 8,
+            "n_features_in_": len(PURCHASE_FEATURES),
             "threshold": float(model_data['threshold']),
-            "has_model": True
+            "has_model": True,
+            "seen_categories": model_data.get("seen_categories", []),
         }
 
     return metadata

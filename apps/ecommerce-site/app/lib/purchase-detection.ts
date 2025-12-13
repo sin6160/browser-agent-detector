@@ -20,6 +20,8 @@ export interface ClusterAnomalyRequest {
   limited_flag: number;
   payment_method: number;
   manufacturer: number;
+  pc1?: number;
+  pc2?: number;
 }
 
 // 検知サーバーのレスポンス形式
@@ -51,53 +53,34 @@ export interface ClusterAnomalyErrorResponse {
  * カート情報から購入データを生成
  * @param cartItems カートアイテム
  */
-function generatePurchaseDataFromCart(cartItems: CartItem[]): {
-  product_category: number;
-  quantity: number;
-  price: number;
-  total_amount: number;
-  purchase_time: number;
-  limited_flag: number;
-  payment_method: number;
-  manufacturer: number;
-} {
-  // カートの最初の商品を代表として使用（実際の実装では複数商品の集約が必要）
-  const firstItem = cartItems[0];
-  const product = firstItem.product;
-
+function generatePurchaseDataForItem(cartItem: CartItem): ClusterAnomalyRequest {
+  const product = cartItem.product;
   if (!product) {
     throw new Error('商品情報が見つかりません');
   }
 
-  // 総額・総数量（DB値をそのまま使用）
-  const totalAmount = cartItems.reduce((sum, item) => {
-    return sum + Number(item.product?.price || 0) * Number(item.quantity || 0);
-  }, 0);
+  const qty = Number(cartItem.quantity || 0);
+  const price = Number(product.price || 0);
+  const totalAmount = Math.round(price * qty);
+  const purchaseTime = new Date().getHours();
 
-  const totalQuantity = cartItems.reduce((sum, item) => {
-    return sum + Number(item.quantity || 0);
-  }, 0);
-
-  // 限定品フラグ（カート内に限定品があるかチェック）
-  const hasLimitedItem = cartItems.some(item => item.product?.is_limited);
-
-  // 平均価格を計算（複数商品の場合）
-  const averagePrice = totalQuantity > 0 ? totalAmount / totalQuantity : 0;
-
-  console.log('商品カテゴリ:', {
-    originalCategory: product.category,
-    productName: product.name
-  });
+  const pc1 = Number.isFinite(product.pc1 as number) ? Number(product.pc1) : 0;
+  const pc2 = Number.isFinite(product.pc2 as number) ? Number(product.pc2) : 0;
 
   return {
     product_category: Number(product.category),
-    quantity: totalQuantity,
-    price: Math.round(averagePrice), // 平均価格を使用
-    total_amount: Math.round(totalAmount),
-    purchase_time: new Date().getHours(), // 現在時刻
-    limited_flag: hasLimitedItem ? 1 : 0,
+    quantity: qty,
+    price: Math.round(price),
+    total_amount: totalAmount,
+    purchase_time: purchaseTime,
+    limited_flag: product.is_limited ? 1 : 0,
     payment_method: 3, // デフォルト決済方法（クレジットカード）
-    manufacturer: Number(product.brand)
+    manufacturer: Number(product.brand),
+    pc1,
+    pc2,
+    age: 0, // ダミー（呼び出し元で上書き）
+    gender: 0,
+    prefecture: 0,
   };
 }
 
@@ -120,61 +103,77 @@ export async function detectPurchaseAnomaly(
     const gender = user.gender;
     const prefecture = user.prefecture;
 
-    // カート情報から購入データを生成
-    const purchaseData = generatePurchaseDataFromCart(cartItems);
+    // カートの各商品ごとにクラスタ判定を実行し、最も疑わしい結果を採用
+    let worstResult: ClusterAnomalyResponse | null = null;
 
-    // 検知サーバーへのリクエストデータを構築
-    const requestData: ClusterAnomalyRequest = {
-      age,
-      gender,
-      prefecture,
-      ...purchaseData
-    };
+    for (const cartItem of cartItems) {
+      const purchaseData = generatePurchaseDataForItem(cartItem);
+      const requestData: ClusterAnomalyRequest = {
+        ...purchaseData,
+        age,
+        gender,
+        prefecture,
+      };
 
-    console.log('検知サーバー呼び出し:', {
-      userId: user.id,
-      requestData
-    });
+      console.log('検知サーバー呼び出し(単品):', {
+        userId: user.id,
+        productId: cartItem.product_id,
+        requestData,
+      });
 
-    // 検知サーバーを呼び出し
-    const response = await fetch(endpointUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestData),
-    });
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestData),
+      });
 
-    if (!response.ok) {
-      // エラーレスポンスの詳細を取得
-      let errorMessage = `検知サーバーエラー: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        console.log('検知サーバーエラーレスポンス:', errorData);
-        errorMessage += ` - ${JSON.stringify(errorData)}`;
-      } catch (e) {
-        console.log('エラーレスポンスの解析に失敗:', e);
+      if (!response.ok) {
+        let errorMessage = `検知サーバーエラー: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.log('検知サーバーエラーレスポンス:', errorData);
+          errorMessage += ` - ${JSON.stringify(errorData)}`;
+        } catch (e) {
+          console.log('エラーレスポンスの解析に失敗:', e);
+        }
+
+        if (response.status === 403) {
+          const errorData: ClusterAnomalyErrorResponse = await response.json();
+          throw new Error(`ANOMALY_DETECTED: ${errorData.message}`);
+        }
+
+        throw new Error(errorMessage);
       }
 
-      // 403 Forbiddenの場合は異常検知として処理
-      if (response.status === 403) {
-        const errorData: ClusterAnomalyErrorResponse = await response.json();
-        throw new Error(`ANOMALY_DETECTED: ${errorData.message}`);
-      }
+      const result: ClusterAnomalyResponse = await response.json();
+      console.log('検知サーバー応答(単品):', {
+        userId: user.id,
+        productId: cartItem.product_id,
+        result,
+      });
 
-      // その他のエラー
-      throw new Error(errorMessage);
+      // is_anomaly を最優先。両方正常の場合は anomaly_score が低いものを優先（より疑わしいとみなす）。
+      if (
+        !worstResult ||
+        result.is_anomaly ||
+        (!worstResult.is_anomaly && result.anomaly_score < worstResult.anomaly_score)
+      ) {
+        worstResult = result;
+      }
+      if (result.is_anomaly) {
+        // 早期終了してもよいが、ログ収集のため全件回すことも可能。ここでは早期終了。
+        break;
+      }
     }
 
-    const result: ClusterAnomalyResponse = await response.json();
+    if (!worstResult) {
+      throw new Error('検知結果を取得できませんでした');
+    }
 
-    console.log('検知サーバー応答:', {
-      userId: user.id,
-      result
-    });
-
-    return result;
+    return worstResult;
 
   } catch (error) {
     console.error('購入検知エラー:', error);

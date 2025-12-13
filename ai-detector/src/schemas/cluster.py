@@ -21,6 +21,8 @@ class ClusterAnomalyRequest(BaseModel):
     limited_flag: Optional[int] = Field(None, description="限定品フラグ")
     payment_method: Optional[int] = Field(None, description="決済手段カテゴリ")
     manufacturer: Optional[int] = Field(None, description="メーカーID")
+    pc1: Optional[float] = Field(None, description="商品特徴量の主成分1")
+    pc2: Optional[float] = Field(None, description="商品特徴量の主成分2")
 
 
 class ClusterAnomalyResponse(BaseModel):

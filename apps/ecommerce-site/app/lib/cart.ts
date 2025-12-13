@@ -19,6 +19,8 @@ export interface CartItem {
     category: number;
     brand: number;
     is_limited: number;
+    pc1?: number | null;
+    pc2?: number | null;
   };
 }
 
@@ -32,7 +34,7 @@ export async function getUserCart(userId: number): Promise<CartItem[]> {
   try {
     // カート内商品を取得して商品情報と結合
     const items = await db.all(
-      `SELECT ci.*, p.name, p.price, p.image_path, p.stock_quantity, p.category, p.brand, p.is_limited
+      `SELECT ci.*, p.name, p.price, p.image_path, p.stock_quantity, p.category, p.brand, p.is_limited, p.pc1, p.pc2
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
        WHERE ci.user_id = ?
@@ -49,7 +51,9 @@ export async function getUserCart(userId: number): Promise<CartItem[]> {
         stock_quantity: item.stock_quantity,
         category: item.category,
         brand: item.brand,
-        is_limited: item.is_limited
+        is_limited: item.is_limited,
+        pc1: item.pc1,
+        pc2: item.pc2,
       }
     }));
   } catch (error) {

@@ -1,348 +1,181 @@
 #!/usr/bin/env python3
-"""クラスタ異常検知の検知率を測定するスクリプト。"""
+"""クラスタ異常検知の混同行列を出力するワンショットスクリプト & 簡易テスト。"""
 
 from __future__ import annotations
 
-import argparse
 import csv
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
-
-# src をパスに追加
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from typing import Iterable, List
 
 import config
 from models.cluster_detector import ClusterAnomalyDetector
 from schemas.cluster import ClusterAnomalyRequest
 from services.cluster_service import ClusterDetectionResult, ClusterDetectionService
 
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+NORMAL_PATH = DATA_DIR / "cluster_detection_normal.csv"
+ANOMALY_PATH = DATA_DIR / "cluster_detection_anomaly.csv"
+
 
 @dataclass
-class ConfusionMatrix:
-    """混同行列を表すデータクラス。"""
-
-    tp: int = 0  # True Positive
-    fp: int = 0  # False Positive
-    tn: int = 0  # True Negative
-    fn: int = 0  # False Negative
+class Confusion:
+    tp: int = 0
+    fp: int = 0
+    tn: int = 0
+    fn: int = 0
 
     @property
     def total(self) -> int:
-        """総データ数。"""
         return self.tp + self.fp + self.tn + self.fn
 
-    @property
-    def positives(self) -> int:
-        """実際の異常数。"""
-        return self.tp + self.fn
 
-    @property
-    def negatives(self) -> int:
-        """実際の正常数。"""
-        return self.tn + self.fp
-
-
-@dataclass
-class Metrics:
-    """評価指標を表すデータクラス。"""
-
-    accuracy: float
-    precision: float
-    recall: float
-    f1_score: float
-    specificity: float
-    false_positive_rate: float
-    false_negative_rate: float
-
-    @classmethod
-    def from_confusion_matrix(cls, cm: ConfusionMatrix) -> Metrics:
-        """混同行列から評価指標を計算。"""
-        total = cm.total
-        if total == 0:
-            return cls(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
-        accuracy = (cm.tp + cm.tn) / total if total > 0 else 0.0
-        precision = cm.tp / (cm.tp + cm.fp) if (cm.tp + cm.fp) > 0 else 0.0
-        recall = cm.tp / (cm.tp + cm.fn) if (cm.tp + cm.fn) > 0 else 0.0
-        f1_score = (
-            2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        )
-        specificity = cm.tn / cm.negatives if cm.negatives > 0 else 0.0
-        false_positive_rate = cm.fp / cm.negatives if cm.negatives > 0 else 0.0
-        false_negative_rate = cm.fn / cm.positives if cm.positives > 0 else 0.0
-
-        return cls(accuracy, precision, recall, f1_score, specificity, false_positive_rate, false_negative_rate)
-
-
-class ClusterDetectionRateMeasurer:
-    """クラスタ異常検知の検知率を測定するクラス。"""
-
-    def __init__(self, models_dir: Path | None = None) -> None:
-        """初期化。
-
-        Args:
-            models_dir: モデルディレクトリ。Noneの場合はconfigから取得。
-        """
-        self.models_dir = models_dir or config.CLUSTER_MODELS_DIR
-        if not self.models_dir.exists():
-            raise FileNotFoundError(f"クラスタモデルが見つかりません: {self.models_dir}")
-
-        self.detector = ClusterAnomalyDetector(models_dir=self.models_dir)
-        self.detector.load_models()
-        self.service = ClusterDetectionService(self.detector)
-
-    def load_test_cases(
-        self, data_path: Path, all_normal: bool = True
-    ) -> List[Tuple[ClusterAnomalyRequest, bool | None]]:
-        """テストケースを読み込む。
-
-        Args:
-            data_path: テストデータのパス。
-            all_normal: Trueの場合、すべて正常データとして扱う。Falseの場合、expected_is_anomalyを使用。
-
-        Returns:
-            (リクエスト, 期待ラベル)のリスト。all_normal=Trueの場合は期待ラベルはNone。
-        """
-        cases = []
-        with data_path.open("r", encoding="utf-8") as fh:
-            reader = csv.DictReader(fh)
-            for row in reader:
-                expected = None
-                if not all_normal and "expected_is_anomaly" in row:
-                    expected = bool(int(row.pop("expected_is_anomaly")))
-
-                payload = {key: int(value) for key, value in row.items()}
-                request = ClusterAnomalyRequest(**payload)
-                cases.append((request, expected))
-
+def load_cases(path: Path, expected_is_anomaly: bool) -> List[tuple[ClusterAnomalyRequest, bool]]:
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        cases: List[tuple[ClusterAnomalyRequest, bool]] = []
+        for row in reader:
+            payload = {k: int(v) if k not in {"pc1", "pc2"} else float(v) for k, v in row.items()}
+            cases.append((ClusterAnomalyRequest(**payload), expected_is_anomaly))
         return cases
 
-    def predict(self, cases: List[Tuple[ClusterAnomalyRequest, bool | None]]) -> List[Tuple[ClusterAnomalyRequest, ClusterDetectionResult, bool | None]]:
-        """推論を実行。
 
-        Args:
-            cases: テストケースのリスト。
-
-        Returns:
-            (リクエスト, 結果, 期待ラベル)のリスト。
-        """
-        results = []
-        for request, expected in cases:
-            result = self.service.predict(request)
-            results.append((request, result, expected))
-        return results
-
-    def calculate_confusion_matrix(
-        self, results: List[Tuple[ClusterAnomalyRequest, ClusterDetectionResult, bool | None]]
-    ) -> Tuple[ConfusionMatrix, List[Tuple[ClusterAnomalyRequest, ClusterDetectionResult, str]]]:
-        """混同行列を計算。
-
-        Args:
-            results: 推論結果のリスト。
-
-        Returns:
-            (混同行列, 失敗ケースのリスト)。
-        """
-        cm = ConfusionMatrix()
-        failed_cases = []
-
-        for request, result, expected in results:
-            predicted = result.is_anomaly
-            actual = expected if expected is not None else False  # all_normal=Trueの場合はFalse
-
-            if predicted and actual:
-                cm.tp += 1
-            elif predicted and not actual:
-                cm.fp += 1
-                failed_cases.append((request, result, "False Positive (誤検知)"))
-            elif not predicted and not actual:
-                cm.tn += 1
-            elif not predicted and actual:
-                cm.fn += 1
-                failed_cases.append((request, result, "False Negative (見逃し)"))
-
-        return cm, failed_cases
-
-    def print_results(
-        self,
-        cm: ConfusionMatrix,
-        metrics: Metrics,
-        failed_cases: List[Tuple[ClusterAnomalyRequest, ClusterDetectionResult, str]],
-        all_normal: bool,
-    ) -> None:
-        """結果を表示。
-
-        Args:
-            cm: 混同行列。
-            metrics: 評価指標。
-            failed_cases: 失敗ケースのリスト。
-            all_normal: すべて正常データとして評価したかどうか。
-        """
-        print("=" * 80)
-        if all_normal:
-            print("クラスタ異常検知 - 検知率測定結果（すべて正常データとして評価）")
+def evaluate(service: ClusterDetectionService, cases: Iterable[tuple[ClusterAnomalyRequest, bool]]) -> Confusion:
+    cm = Confusion()
+    for req, expected in cases:
+        res: ClusterDetectionResult = service.predict(req)
+        predicted = res.is_anomaly
+        if predicted and expected:
+            cm.tp += 1
+        elif predicted and not expected:
+            cm.fp += 1
+        elif not predicted and not expected:
+            cm.tn += 1
         else:
-            print("クラスタ異常検知 - 検知率測定結果")
-        print("=" * 80)
+            cm.fn += 1
+    return cm
 
-        if all_normal:
-            print("\n【前提条件】")
-            print("  テストデータはすべて正常な購買データ")
-            print("  異常と判定されたものは「誤検知（False Positive）」")
-            print("  正常と判定されたものは「正しく正常と判定（True Negative）」")
-            print()
 
-        print(f"テストデータ数: {cm.total}件")
-        if not all_normal:
-            print(f"  実際の異常: {cm.positives}件")
-            print(f"  実際の正常: {cm.negatives}件")
-        print()
+def generate_test_data() -> None:
+    # 正常データ: 生活に即した購買（合計60件）
+    #  - 若年女性が夜にゲームを1本購入（5件）
+    #  - エンジニア男性が深夜にPC周辺機器を1台購入（5件）
+    #  - 学生男性が夕方に書籍を1冊購入（5件）
+    #  - 主婦が日中に食品をまとめ買い（5件）
+    #  - プレミアム男性が夜にゲーム高額品を購入（5件）
+    #  - 贈答や生活変化でギフト券少量やスキンケア/DIY/インテリアを購入（35件: 境界ケース多め）
+    # 異常データ: 学習分布から外れた購買（合計60件）
+    #  - シニア女性がギフト券を深夜や高額・複数枚購入（10件）
+    #  - 深夜・早朝の高額まとめ買い（美容大量、PC周辺機器大量、ファッション高額など）、属性・時間帯のずれた高額購買（50件）
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        print("混同行列:")
-        print(f"  True Positive (TP):  {cm.tp:2d} - 異常と予測して実際に異常")
-        print(f"  False Positive (FP): {cm.fp:2d} - 異常と予測したが実際は正常（誤検知）")
-        print(f"  True Negative (TN):  {cm.tn:2d} - 正常と予測して実際に正常")
-        print(f"  False Negative (FN): {cm.fn:2d} - 正常と予測したが実際は異常（見逃し）")
-        print()
+    normal_core = [
+        # 学習分布の中核
+        dict(age=28, gender=2, prefecture=14, product_category=10, quantity=1, price=7000, total_amount=7000, purchase_time=20, limited_flag=0, payment_method=3, manufacturer=10, pc1=0.66, pc2=0.78),
+        dict(age=35, gender=1, prefecture=13, product_category=1, quantity=1, price=22000, total_amount=22000, purchase_time=22, limited_flag=0, payment_method=3, manufacturer=5, pc1=0.82, pc2=0.18),
+        dict(age=22, gender=1, prefecture=13, product_category=3, quantity=1, price=1800, total_amount=1800, purchase_time=19, limited_flag=0, payment_method=1, manufacturer=6, pc1=0.28, pc2=0.42),
+        dict(age=65, gender=2, prefecture=27, product_category=4, quantity=2, price=1200, total_amount=2400, purchase_time=11, limited_flag=0, payment_method=2, manufacturer=8, pc1=0.18, pc2=0.58),
+        dict(age=55, gender=1, prefecture=23, product_category=10, quantity=1, price=22000, total_amount=22000, purchase_time=21, limited_flag=0, payment_method=3, manufacturer=20, pc1=0.66, pc2=0.78),
+    ]
 
-        print("評価指標:")
-        print(f"  精度 (Accuracy):              {metrics.accuracy:.2%} ({cm.tp + cm.tn}/{cm.total})")
-        print(f"  適合率 (Precision):           {metrics.precision:.2%} ({cm.tp}/{cm.tp + cm.fp})" if (cm.tp + cm.fp) > 0 else "  適合率 (Precision):           N/A")
-        if cm.positives > 0:
-            print(f"  再現率 (Recall):               {metrics.recall:.2%} ({cm.tp}/{cm.positives})")
-            print(f"  F1スコア:                      {metrics.f1_score:.2%}")
-        print(f"  特異度 (Specificity):          {metrics.specificity:.2%} ({cm.tn}/{cm.negatives})")
-        print()
-        print("【主要指標】")
-        if cm.positives > 0:
-            print(f"  検知率 (Detection Rate):       {metrics.recall:.2%} ({cm.tp}/{cm.positives})")
-            print(f"    → 異常データのうち、正しく異常と判定できた割合")
-        else:
-            print(f"  検知率 (Detection Rate):       N/A (異常データが存在しません)")
-        print(f"  誤検知率 (False Positive Rate): {metrics.false_positive_rate:.2%} ({cm.fp}/{cm.negatives})")
-        print(f"    → 正常データのうち、誤って異常と判定した割合")
-        if cm.positives > 0:
-            print(f"  見逃し率 (False Negative Rate): {metrics.false_negative_rate:.2%} ({cm.fn}/{cm.positives})")
-            print(f"    → 異常データのうち、誤って正常と判定した割合")
-        else:
-            print(f"  見逃し率 (False Negative Rate): N/A (異常データが存在しません)")
-        print()
+    normal_border = [
+        # 境界: 生活変化・贈答など、分布内だが周辺のケース（ギフト券少量や時間帯ブレも含む）
+        dict(age=35, gender=1, prefecture=13, product_category=8, quantity=1, price=5800, total_amount=5800, purchase_time=18, limited_flag=0, payment_method=3, manufacturer=16, pc1=0.36, pc2=0.68),  # 男性がスキンケア（贈答）
+        dict(age=28, gender=2, prefecture=14, product_category=12, quantity=1, price=4500, total_amount=4500, purchase_time=13, limited_flag=0, payment_method=5, manufacturer=4, pc1=0.52, pc2=0.24),   # 女性が工具をDIY用に
+        dict(age=65, gender=2, prefecture=27, product_category=9, quantity=1, price=4200, total_amount=4200, purchase_time=15, limited_flag=0, payment_method=2, manufacturer=18, pc1=0.48, pc2=0.32),   # インテリア買い替え
+        dict(age=22, gender=1, prefecture=13, product_category=4, quantity=2, price=1280, total_amount=2560, purchase_time=17, limited_flag=1, payment_method=2, manufacturer=9, pc1=0.18, pc2=0.58),   # お菓子ギフト
+        dict(age=55, gender=1, prefecture=23, product_category=6, quantity=1, price=3800, total_amount=3800, purchase_time=19, limited_flag=0, payment_method=3, manufacturer=12, pc1=0.42, pc2=0.56),  # ペットフード切替
+        dict(age=30, gender=2, prefecture=14, product_category=11, quantity=1, price=3000, total_amount=3000, purchase_time=21, limited_flag=0, payment_method=3, manufacturer=2, pc1=0.9, pc2=0.9),   # 婚約祝いにギフト券を1枚
+        dict(age=32, gender=1, prefecture=13, product_category=11, quantity=2, price=5000, total_amount=10000, purchase_time=9, limited_flag=0, payment_method=3, manufacturer=5, pc1=0.9, pc2=0.9),    # 同僚退職の贈答ギフト券
+        dict(age=40, gender=1, prefecture=23, product_category=11, quantity=1, price=3000, total_amount=3000, purchase_time=12, limited_flag=0, payment_method=5, manufacturer=4, pc1=0.9, pc2=0.9),    # 父の日ギフト券
+        dict(age=45, gender=2, prefecture=13, product_category=11, quantity=1, price=8000, total_amount=8000, purchase_time=14, limited_flag=0, payment_method=3, manufacturer=3, pc1=0.9, pc2=0.9),   # 引っ越し祝いのギフト券
+        dict(age=50, gender=1, prefecture=27, product_category=11, quantity=2, price=4000, total_amount=8000, purchase_time=16, limited_flag=0, payment_method=3, manufacturer=1, pc1=0.9, pc2=0.9),   # 子供の進学祝いギフト券
+        dict(age=38, gender=2, prefecture=13, product_category=11, quantity=2, price=6000, total_amount=12000, purchase_time=1, limited_flag=1, payment_method=3, manufacturer=6, pc1=0.9, pc2=0.9),    # 深夜明けに贈答ギフト券をまとめ買い
+        dict(age=42, gender=1, prefecture=14, product_category=11, quantity=2, price=2500, total_amount=5000, purchase_time=23, limited_flag=1, payment_method=2, manufacturer=7, pc1=1.3, pc2=-1.3),    # 夜更けに小額ギフト券を複数購入
+        dict(age=48, gender=2, prefecture=23, product_category=11, quantity=2, price=3500, total_amount=7000, purchase_time=6, limited_flag=0, payment_method=5, manufacturer=8, pc1=0.9, pc2=0.9),    # 朝の少額ギフト券まとめ
+        dict(age=36, gender=1, prefecture=13, product_category=2, quantity=2, price=39800, total_amount=79600, purchase_time=0, limited_flag=1, payment_method=3, manufacturer=4, pc1=1.8, pc2=-1.2),  # 家電を深夜にまとめ買い
+        dict(age=33, gender=2, prefecture=14, product_category=5, quantity=2, price=9000, total_amount=18000, purchase_time=5, limited_flag=1, payment_method=3, manufacturer=10, pc1=0.55, pc2=0.52),  # 朝スポーツ用品まとめ買い
+        dict(age=46, gender=1, prefecture=23, product_category=9, quantity=2, price=15800, total_amount=31600, purchase_time=23, limited_flag=1, payment_method=3, manufacturer=18, pc1=1.6, pc2=-1.1),  # 深夜のインテリア買い替えを一度に
+        dict(age=29, gender=2, prefecture=27, product_category=8, quantity=5, price=5800, total_amount=29000, purchase_time=23, limited_flag=1, payment_method=3, manufacturer=16, pc1=2.0, pc2=-1.4),  # 深夜美容まとめ買い
+    ]
 
-        if failed_cases:
-            print("=" * 80)
-            print(f"失敗ケース ({len(failed_cases)}件):")
-            print("=" * 80)
-            for idx, (request, result, error_type) in enumerate(failed_cases, 1):
-                print(f"\n【失敗ケース {idx}】{error_type}")
-                print(f"  年齢: {request.age}, 性別: {request.gender}, 都道府県: {request.prefecture}")
-                print(f"  商品カテゴリ: {request.product_category}, 数量: {request.quantity}")
-                print(f"  単価: {request.price:,}円, 総額: {request.total_amount:,}円")
-                print(f"  購入時間: {request.purchase_time}時, 限定品: {request.limited_flag}")
-                print(f"  決済手段: {request.payment_method}, メーカー: {request.manufacturer}")
-                print(f"  クラスタID: {result.cluster_id}")
-                print(f"  異常スコア: {result.anomaly_score:.4f}")
-                print(f"  閾値: {result.threshold:.4f}")
-                if error_type == "False Positive (誤検知)":
-                    print(f"  理由: 正常なデータだが、クラスタ{result.cluster_id}の正常な購買パターンから外れていると判定された")
-        else:
-            print("=" * 80)
-            print("失敗ケース: なし（すべて正しく判定できました）")
-            print("=" * 80)
+    anomaly_core = [
+        # シニア女性×ギフト券（学習では除外している分布）: 10件に収める
+        dict(age=65, gender=2, prefecture=27, product_category=11, quantity=1, price=5000, total_amount=5000, purchase_time=10, limited_flag=0, payment_method=3, manufacturer=2, pc1=0.9, pc2=0.9),
+        dict(age=60, gender=2, prefecture=23, product_category=11, quantity=2, price=3000, total_amount=6000, purchase_time=1, limited_flag=0, payment_method=3, manufacturer=4, pc1=0.9, pc2=0.9),
+        dict(age=70, gender=2, prefecture=13, product_category=11, quantity=3, price=8000, total_amount=24000, purchase_time=23, limited_flag=0, payment_method=3, manufacturer=1, pc1=0.9, pc2=0.9),
+        dict(age=67, gender=2, prefecture=27, product_category=11, quantity=2, price=6000, total_amount=12000, purchase_time=2, limited_flag=0, payment_method=3, manufacturer=5, pc1=0.9, pc2=0.9),
+        dict(age=63, gender=2, prefecture=23, product_category=11, quantity=1, price=7000, total_amount=7000, purchase_time=4, limited_flag=0, payment_method=3, manufacturer=4, pc1=0.9, pc2=0.9),
+        dict(age=66, gender=2, prefecture=14, product_category=11, quantity=2, price=9000, total_amount=18000, purchase_time=22, limited_flag=0, payment_method=3, manufacturer=6, pc1=0.9, pc2=0.9),
+        dict(age=68, gender=2, prefecture=23, product_category=11, quantity=3, price=10000, total_amount=30000, purchase_time=0, limited_flag=0, payment_method=3, manufacturer=7, pc1=0.9, pc2=0.9),
+        dict(age=62, gender=2, prefecture=27, product_category=11, quantity=1, price=12000, total_amount=12000, purchase_time=3, limited_flag=0, payment_method=3, manufacturer=3, pc1=0.9, pc2=0.9),
+        dict(age=69, gender=2, prefecture=13, product_category=11, quantity=2, price=11000, total_amount=22000, purchase_time=5, limited_flag=0, payment_method=3, manufacturer=8, pc1=0.9, pc2=0.9),
+        dict(age=71, gender=2, prefecture=27, product_category=11, quantity=4, price=8000, total_amount=32000, purchase_time=6, limited_flag=0, payment_method=3, manufacturer=9, pc1=0.9, pc2=0.9),
+    ]
 
-        print()
-        print("=" * 80)
-        print("【検知率・誤検知率・見逃し率のまとめ】")
-        print("=" * 80)
-        print()
-        if cm.positives > 0:
-            print(f"検知率 (Detection Rate):       {metrics.recall:.2%} ({cm.tp}/{cm.positives})")
-            print(f"  → 異常データのうち、正しく異常と判定できた割合")
-            print(f"  → 高いほど良い（目標: 70%以上）")
-            print()
-            print(f"見逃し率 (False Negative Rate): {metrics.false_negative_rate:.2%} ({cm.fn}/{cm.positives})")
-            print(f"  → 異常データのうち、誤って正常と判定した割合")
-            print(f"  → 低いほど良い（検知率 = 1 - 見逃し率）")
-            print()
-        else:
-            print("検知率・見逃し率: 異常データが存在しないため測定できません")
-            print()
-        print(f"誤検知率 (False Positive Rate): {metrics.false_positive_rate:.2%} ({cm.fp}/{cm.negatives})")
-        print(f"  → 正常データのうち、誤って異常と判定した割合")
-        print(f"  → 低いほど良い")
-        print()
-        if all_normal:
-            print("※ すべてのテストデータが正常であるため、検知率と見逃し率は測定できません")
-            print("※ 異常データでの評価には、実際の異常データセットが必要です")
-        print("=" * 80)
+    anomaly_border = [
+        # ギフト券以外も混ぜた境界ケース（属性と金額・時間帯がずれる）
+        dict(age=40, gender=1, prefecture=13, product_category=8, quantity=5, price=5800, total_amount=29000, purchase_time=2, limited_flag=0, payment_method=3, manufacturer=16, pc1=0.36, pc2=0.68),  # 男性が深夜に美容大量買い
+        dict(age=32, gender=2, prefecture=14, product_category=1, quantity=3, price=60000, total_amount=180000, purchase_time=3, limited_flag=0, payment_method=3, manufacturer=2, pc1=0.82, pc2=0.18),  # 深夜に高額PC周辺機器まとめ買い
+        dict(age=45, gender=2, prefecture=23, product_category=7, quantity=4, price=15000, total_amount=60000, purchase_time=0, limited_flag=1, payment_method=5, manufacturer=14, pc1=0.63, pc2=0.41),  # 夜中にファッション高額まとめ買い
+        dict(age=39, gender=1, prefecture=13, product_category=2, quantity=2, price=39800, total_amount=79600, purchase_time=1, limited_flag=0, payment_method=3, manufacturer=4, pc1=0.74, pc2=0.22),  # 深夜家電複数台
+        dict(age=31, gender=2, prefecture=14, product_category=5, quantity=3, price=9000, total_amount=27000, purchase_time=5, limited_flag=1, payment_method=3, manufacturer=10, pc1=0.55, pc2=0.52),  # 早朝スポーツ用品高額
+        dict(age=44, gender=1, prefecture=23, product_category=9, quantity=2, price=15800, total_amount=31600, purchase_time=4, limited_flag=0, payment_method=3, manufacturer=18, pc1=0.48, pc2=0.32),  # 早朝インテリア高額
+        dict(age=26, gender=2, prefecture=27, product_category=8, quantity=6, price=5800, total_amount=34800, purchase_time=23, limited_flag=1, payment_method=3, manufacturer=16, pc1=2.1, pc2=-1.3),  # 深夜美容大量
+        dict(age=52, gender=1, prefecture=14, product_category=2, quantity=3, price=39800, total_amount=119400, purchase_time=2, limited_flag=0, payment_method=3, manufacturer=4, pc1=0.74, pc2=0.22),  # 深夜家電まとめ買い
+        dict(age=36, gender=2, prefecture=23, product_category=5, quantity=4, price=9000, total_amount=36000, purchase_time=1, limited_flag=1, payment_method=3, manufacturer=10, pc1=0.55, pc2=0.52),  # 深夜スポーツ用品大量
+        dict(age=42, gender=1, prefecture=13, product_category=7, quantity=5, price=15000, total_amount=75000, purchase_time=3, limited_flag=1, payment_method=5, manufacturer=14, pc1=0.63, pc2=0.41),  # 深夜ファッション高額
+    ]
 
-    def measure(
-        self, data_path: Path, all_normal: bool = True
-    ) -> Tuple[ConfusionMatrix, Metrics, List[Tuple[ClusterAnomalyRequest, ClusterDetectionResult, str]]]:
-        """検知率を測定。
+    def repeat_to(target: int, patterns: list[dict]) -> list[dict]:
+        rows = []
+        idx = 0
+        while len(rows) < target:
+            rows.append(patterns[idx % len(patterns)].copy())
+            idx += 1
+        return rows
 
-        Args:
-            data_path: テストデータのパス。
-            all_normal: Trueの場合、すべて正常データとして扱う。
+    normal_rows = repeat_to(25, normal_core) + repeat_to(35, normal_border)
+    anomaly_rows = repeat_to(10, anomaly_core) + repeat_to(50, anomaly_border)
 
-        Returns:
-            (混同行列, 評価指標, 失敗ケースのリスト)。
-        """
-        cases = self.load_test_cases(data_path, all_normal=all_normal)
-        results = self.predict(cases)
-        cm, failed_cases = self.calculate_confusion_matrix(results)
-        metrics = Metrics.from_confusion_matrix(cm)
-        return cm, metrics, failed_cases
+    for path, rows in [(NORMAL_PATH, normal_rows), (ANOMALY_PATH, anomaly_rows)]:
+        with path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
 
 
 def main() -> None:
-    """メイン処理。"""
-    parser = argparse.ArgumentParser(description="クラスタ異常検知の検知率を測定")
-    parser.add_argument(
-        "--data",
-        type=Path,
-        default=Path(__file__).parent / "data" / "cluster_detection_cases_real.csv",
-        help="テストデータのパス",
-    )
-    parser.add_argument(
-        "--all-normal",
-        action="store_true",
-        default=True,
-        help="すべて正常データとして評価（デフォルト: True）",
-    )
-    parser.add_argument(
-        "--use-expected",
-        action="store_true",
-        help="expected_is_anomalyを使用して評価（--all-normalと排他的）",
-    )
-    parser.add_argument(
-        "--models-dir",
-        type=Path,
-        default=None,
-        help="モデルディレクトリ（デフォルト: configから取得）",
-    )
+    generate_test_data()
+    detector = ClusterAnomalyDetector(models_dir=config.CLUSTER_MODELS_DIR)
+    detector.load_models()
+    service = ClusterDetectionService(detector)
 
-    args = parser.parse_args()
+    normal_cases = load_cases(NORMAL_PATH, expected_is_anomaly=False)
+    anomaly_cases = load_cases(ANOMALY_PATH, expected_is_anomaly=True)
+    all_cases = [*normal_cases, *anomaly_cases]
 
-    if args.use_expected:
-        args.all_normal = False
+    cm = evaluate(service, all_cases)
 
-    try:
-        measurer = ClusterDetectionRateMeasurer(models_dir=args.models_dir)
-        cm, metrics, failed_cases = measurer.measure(args.data, all_normal=args.all_normal)
-        measurer.print_results(cm, metrics, failed_cases, all_normal=args.all_normal)
-    except FileNotFoundError as e:
-        print(f"エラー: {e}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"予期しないエラーが発生しました: {e}", file=sys.stderr)
-        import traceback
+    print("=== クラスタ異常検知 混同行列 ===")
+    print(f"  TP (異常を当てた)      : {cm.tp}")
+    print(f"  FP (誤検知)           : {cm.fp}")
+    print(f"  TN (正常を当てた)     : {cm.tn}")
+    print(f"  FN (見逃し)           : {cm.fn}")
+    print(f"  合計                  : {cm.total}")
+    if cm.total:
+        acc = (cm.tp + cm.tn) / cm.total
+        precision = cm.tp / (cm.tp + cm.fp) if (cm.tp + cm.fp) else 0.0
+        recall = cm.tp / (cm.tp + cm.fn) if (cm.tp + cm.fn) else 0.0
+        print(f"\n  Accuracy  : {acc:.3f}")
+        print(f"  Precision : {precision:.3f}")
+        print(f"  Recall    : {recall:.3f}")
+        print(f"  F1        : {0 if precision + recall == 0 else 2*precision*recall/(precision+recall):.3f}")
 
-        traceback.print_exc()
-        sys.exit(1)
+    if cm.fp or cm.fn:
+        print("\n誤検知/見逃しあり: データやモデルを見直してください。")
 
 
 if __name__ == "__main__":
     main()
-

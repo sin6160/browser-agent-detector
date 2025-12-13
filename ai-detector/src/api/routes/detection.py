@@ -35,6 +35,8 @@ def _build_cluster_request(request: UnifiedDetectionRequest) -> ClusterAnomalyRe
         limited_flag=purchase.limited_flag,
         payment_method=purchase.payment_method,
         manufacturer=purchase.manufacturer,
+        pc1=purchase.pc1,
+        pc2=purchase.pc2,
     )
 
 
