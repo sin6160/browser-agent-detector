@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAIDetector } from '@/app/components/AIDetectorProvider';
 
 interface User {
   id: number;
@@ -33,7 +34,55 @@ export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aiScore, setAiScore] = useState<number | null>(null);
+  const [aiScoreLoading, setAiScoreLoading] = useState(true);
+  const [aiCheckError, setAiCheckError] = useState<string | null>(null);
+  const [showOtmPrompt, setShowOtmPrompt] = useState(false);
+  const [otmCode, setOtmCode] = useState('');
+  const [otmStatus, setOtmStatus] = useState<'idle' | 'verifying'>('idle');
   const router = useRouter();
+  const { checkDetection } = useAIDetector();
+
+  const extractAiScore = useCallback((payload: any): number | null => {
+    if (!payload) return null;
+    if (typeof payload.botScore === 'number') return payload.botScore;
+    if (typeof payload.bot_score === 'number') return payload.bot_score;
+    if (typeof payload.score === 'number') return payload.score;
+    const browserScore = payload?.browser_detection?.score;
+    return typeof browserScore === 'number' ? browserScore : null;
+  }, []);
+
+  const applyAiScore = useCallback((score: number) => {
+    if (Number.isFinite(score)) {
+      setAiScore(score);
+      setShowOtmPrompt(score <= 0.5);
+      setAiScoreLoading(false);
+    }
+  }, []);
+
+  // AI Detector スコアをローカルストレージ・イベントから読み取り
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const fromStorage = window.localStorage.getItem('aiDetectorScore');
+    const parsed = fromStorage ? Number.parseFloat(fromStorage) : NaN;
+    if (!Number.isNaN(parsed)) {
+      applyAiScore(parsed);
+    }
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail;
+      const score = extractAiScore(detail);
+      if (score !== null) {
+        applyAiScore(score);
+      }
+    };
+
+    window.addEventListener('aidetector:result', handler as EventListener);
+    return () => {
+      window.removeEventListener('aidetector:result', handler as EventListener);
+    };
+  }, [applyAiScore, extractAiScore]);
   
   // ユーザー情報取得
   useEffect(() => {
@@ -63,6 +112,39 @@ export default function AccountPage() {
     
     fetchUserInfo();
   }, [router]);
+
+  // アカウントページ閲覧時に AI Detector を走らせる
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    setAiScoreLoading(true);
+    setAiCheckError(null);
+
+    (async () => {
+      try {
+        const result = await checkDetection('ACCOUNT_PAGE_VIEW');
+        if (cancelled) return;
+        const score = extractAiScore(result);
+        if (score !== null) {
+          applyAiScore(score);
+        } else if (typeof result?.botScore === 'number') {
+          applyAiScore(result.botScore);
+        } else {
+          setAiScoreLoading(false);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error('AI detector check error:', err);
+        setAiCheckError('AIスコアの確認に失敗しました');
+        setAiScoreLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, checkDetection, extractAiScore, applyAiScore]);
 
   // ログアウト処理
   async function handleLogout() {
@@ -149,10 +231,85 @@ export default function AccountPage() {
     : 'なし';
 
   const hasOrders = user.orders && user.orders.length > 0;
+  const otmVerifying = otmStatus === 'verifying';
+  const otmDisabled = !otmCode.trim() || otmVerifying;
+
+  const handleDummyOtmSubmit = () => {
+    setOtmStatus('verifying');
+    setTimeout(() => {
+      alert('OTMコードを確認しました（ダミー実装）');
+      setOtmStatus('idle');
+    }, 1000);
+  };
   
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">アカウント情報</h1>
+
+      <div className="space-y-3 mb-6">
+        {aiCheckError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {aiCheckError}
+          </div>
+        )}
+        <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 px-4 py-3 rounded flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">AI Detector スコア確認</p>
+            <p className="text-xs text-indigo-800">
+              スコアが 0.5 以下の場合は OTM 再確認を要求します（ダミー）。
+            </p>
+          </div>
+          <div className="text-right">
+            {aiScoreLoading ? (
+              <span className="text-sm text-indigo-700">計測中...</span>
+            ) : aiScore !== null ? (
+              <span className="text-lg font-bold">
+                {aiScore.toFixed(3)}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-500">スコア未取得</span>
+            )}
+          </div>
+        </div>
+
+        {showOtmPrompt && (
+          <div className="bg-amber-50 border border-amber-200 px-4 py-4 rounded-md shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-amber-900">追加認証 (OTM) が必要です</p>
+                <p className="text-sm text-amber-800 mt-1">
+                  AI Detector スコアが 0.5 以下のため、ワンタイムメッセージを確認してください（ダミー動作）。
+                </p>
+              </div>
+              <span className="text-xs font-bold bg-amber-200 text-amber-900 px-2 py-1 rounded-full">
+                SCORE {'<= '}0.5
+              </span>
+            </div>
+            <div className="mt-3 flex flex-col md:flex-row gap-3">
+              <input
+                type="text"
+                value={otmCode}
+                onChange={(e) => setOtmCode(e.target.value)}
+                placeholder="OTMコードを入力（ダミー）"
+                className="flex-1 border border-amber-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                disabled={otmVerifying}
+              />
+              <button
+                onClick={handleDummyOtmSubmit}
+                disabled={otmDisabled}
+                className={`px-4 py-2 rounded text-white ${
+                  otmDisabled ? 'bg-amber-300 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                {otmVerifying ? '確認中...' : 'OTMコードを確認'}
+              </button>
+            </div>
+            <p className="text-xs text-amber-700 mt-2">
+              セキュリティ検証用のダミー UI です。実際の送信・検証は行われません。
+            </p>
+          </div>
+        )}
+      </div>
       
       <div className="bg-white shadow-md rounded-lg overflow-hidden mb-6">
         <div className="px-6 py-4 bg-indigo-50 border-b">
