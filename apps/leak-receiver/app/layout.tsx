@@ -15,8 +15,8 @@ const geistMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Leak Receiver",
-  description: "Demo endpoint for receiving and listing leaked account info",
+  title: "Memo Pad",
+  description: "Personal memo-style receiver and history viewer",
 };
 
 export default function RootLayout({

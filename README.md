@@ -23,7 +23,7 @@ AI エージェントによるブラウザ自動操作は、プロンプトイ�
 
 - **AI 検知 API (`ai-detector/`)**: FastAPI + LightGBM + KMeans/IsolationForest による推論サービス。`POST /detect` と `POST /detect_cluster_anomaly` を提供し、`docs/API-doc.md` に仕様を掲載しています。
 - **検証用 EC サイト (`apps/ecommerce-site/`)**: Next.js 14 + SQLite の会員制サイト。`BehaviorTrackerProvider` がブラウザ操作を収集し、reCAPTCHA Enterprise と AI スコアバッジを統合します。
-- **機密情報受信サイト (`apps/leak-receiver/`)**: シナリオB向けの簡易受信先。Next.js 16 (App Router) でフォーム投稿/ファイル添付を受け取り、`/history` で最新200件をJSONベースで閲覧できます。
+- **機密情報受信サイト (`apps/leak-receiver/`)**: シナリオB向けの簡易受信先。個人メモ風のUIでテキストを貼り付けて送信でき、`/history` で最新200件をJSONベースで閲覧できます（Next.js 14, App Router）。
 - **共通ドキュメント**: 技術要件やデータモデルは `docs/` 配下（`requirements.md`, `data-model.md`, `browser-detection-data.md`）にまとめています。
 
 ## 主な機能
