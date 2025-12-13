@@ -96,15 +96,15 @@ def create_isolation_forest_models(df, kmeans):
 
         # IsolationForestモデルを作成
         isolation_forest = IsolationForest(
-            contamination=0.1,  # 異常割合はデータに合わせて標準に戻す
+            contamination=0.15,  # 異常寄りに傾けて境界を厳しめに
             random_state=42,
             n_estimators=200
         )
         isolation_forest.fit(X_scaled)
 
-        # 閾値を計算（decision_functionの10%分位点）
+        # 閾値を計算（decision_functionの20%分位点でやや厳しめ）
         scores = isolation_forest.decision_function(X_scaled)
-        threshold = np.percentile(scores, 10)
+        threshold = np.percentile(scores, 20)
 
         cluster_models[cluster_id] = {
             'scaler': scaler,
