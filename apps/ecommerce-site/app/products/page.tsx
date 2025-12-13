@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../lib/auth-provider';
+import { productReviews, wirelessMouseReviewPath } from '../lib/reviews';
 
 interface Product {
   id: number;
@@ -245,79 +246,116 @@ export default function ProductsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.map(product => (
-            <div key={product.id} className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div style={{height: '200px', width: '200px'}} className="mx-auto bg-gray-50 flex items-center justify-center overflow-hidden">
-                {product.image_path ? (
-                  <img
-                    src={product.image_path}
-                    alt={product.name}
-                    style={{maxHeight: '180px', maxWidth: '180px'}}
-                    className="object-contain"
-                  />
-                ) : (
-                  <div className="text-gray-400">画像なし</div>
-                )}
-              </div>
-
-              <div className="p-3">
-                <div className="flex justify-between items-start mb-1">
-                  <h2 className="text-base font-semibold text-gray-900 line-clamp-2 h-10">{product.name}</h2>
-                  {product.is_limited && (
-                    <span className="bg-red-100 text-red-800 text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap ml-1">限定</span>
-                  )}
-                </div>
-
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-gray-500 text-xs">商品ID: {product.id}</p>
-                  <p className="text-gray-500 text-xs">
-                    {categoryNameMap[String(product.category)] || 'その他'}
-                  </p>
-                </div>
-                <p className="text-gray-800 font-bold text-base mb-1">¥{product.price.toLocaleString()}</p>
-                {product.description && (
-                  <p className="text-xs text-gray-700 mb-2 line-clamp-3 h-12">{product.description}</p>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className={`text-xs ${product.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {product.stock_quantity > 0 ? `残り${product.stock_quantity}点` : '在庫切れ'}
-                  </span>
+          {products.map(product => {
+              const reviews = productReviews[product.name] || [];
+              return (
+                <div key={product.id} className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                  <div style={{height: '200px', width: '200px'}} className="mx-auto bg-gray-50 flex items-center justify-center overflow-hidden">
+                    {product.image_path ? (
+                      <img
+                        src={product.image_path}
+                        alt={product.name}
+                        style={{maxHeight: '180px', maxWidth: '180px'}}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="text-gray-400">画像なし</div>
+                    )}
                   </div>
 
-                  {/* 数量選択 */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-1">
-                      <label className="text-xs text-gray-600">数量:</label>
-                      <select
-                        value={quantities[product.id] || 1}
-                        onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value))}
-                        disabled={product.stock_quantity === 0}
-                        className="text-xs text-gray-900 border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
-                      >
-                        {Array.from({ length: Math.min(10, product.stock_quantity) }, (_, i) => i + 1).map(num => (
-                          <option key={num} value={num}>{num}</option>
-                        ))}
-                      </select>
+                  <div className="p-3">
+                    <div className="flex justify-between items-start mb-1">
+                      <h2 className="text-base font-semibold text-gray-900 line-clamp-2 h-10">{product.name}</h2>
+                      {product.is_limited && (
+                        <span className="bg-red-100 text-red-800 text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap ml-1">限定</span>
+                      )}
                     </div>
 
-                    <button
-                      onClick={() => handleAddToCart(product.id, quantities[product.id] || 1)}
-                      disabled={product.stock_quantity === 0}
-                      className={`px-2 py-1 rounded text-xs ${
-                        product.stock_quantity > 0
-                          ? 'bg-pink-500 hover:bg-pink-600 text-white'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      カートに追加
-                    </button>
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-gray-500 text-xs">商品ID: {product.id}</p>
+                      <p className="text-gray-500 text-xs">
+                        {categoryNameMap[String(product.category)] || 'その他'}
+                      </p>
+                    </div>
+                    <p className="text-gray-800 font-bold text-base mb-1">¥{product.price.toLocaleString()}</p>
+                    {product.description && (
+                      <p className="text-xs text-gray-700 mb-2 line-clamp-3 h-12">{product.description}</p>
+                    )}
+
+                    {reviews.length > 0 && (
+                      <div className="mt-3 border-t border-gray-200 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-semibold text-gray-800">レビュー</h3>
+                          <span className="text-xs text-gray-500">投稿済み {reviews.length}件</span>
+                        </div>
+                        <div className="space-y-2">
+                          {reviews.map((review, index) => (
+                            <div key={index} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-900">{review.reviewer}</span>
+                                <span className="text-xs text-gray-500">{review.date}</span>
+                              </div>
+                              <div className="text-xs text-gray-600 mb-1">評価: {review.rating}/5</div>
+                            <p
+                              className="text-sm text-gray-800 whitespace-pre-line leading-relaxed"
+                              dangerouslySetInnerHTML={{ __html: review.contentHtml }}
+                            />
+                            </div>
+                          ))}
+                        </div>
+                        {product.name === 'ワイヤレスマウス' && (
+                          <div className="mt-2 text-right">
+                            <Link
+                              href={wirelessMouseReviewPath}
+                              className="text-xs font-semibold text-pink-600 hover:text-pink-700"
+                            >
+                              ワイヤレスマウスのレビュー専用ページへ
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2 mt-3">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-xs ${product.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {product.stock_quantity > 0 ? `残り${product.stock_quantity}点` : '在庫切れ'}
+                      </span>
+                      </div>
+
+                      {/* 数量選択 */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1">
+                          <label className="text-xs text-gray-600">数量:</label>
+                          <select
+                            value={quantities[product.id] || 1}
+                            onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value))}
+                            disabled={product.stock_quantity === 0}
+                            className="text-xs text-gray-900 border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-pink-500 bg-white"
+                          >
+                            {Array.from({ length: Math.min(10, product.stock_quantity) }, (_, i) => i + 1).map(num => (
+                              <option key={num} value={num}>{num}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <button
+                          onClick={() => handleAddToCart(product.id, quantities[product.id] || 1)}
+                          disabled={product.stock_quantity === 0}
+                          className={`px-2 py-1 rounded text-xs ${
+                            product.stock_quantity > 0
+                              ? 'bg-pink-500 hover:bg-pink-600 text-white'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          カートに追加
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
         </div>
       )}
 
