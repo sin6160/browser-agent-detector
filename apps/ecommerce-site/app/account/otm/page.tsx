@@ -83,9 +83,6 @@ export default function AccountOtmPage() {
         <Link href="/" className="text-indigo-600 hover:underline">
           トップへ戻る
         </Link>
-        <Link href="/account" className="text-indigo-600 hover:underline">
-          アカウントページへ戻る
-        </Link>
       </div>
     </div>
   );
