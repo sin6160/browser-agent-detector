@@ -325,7 +325,7 @@ export default function ProductsPage() {
 
       {/* 購入手続きボタン */}
       {isLoggedIn && (
-        <div className="mt-8 text-center">
+        <div className="mt-24 text-center">
           <Link
             href="/cart"
             className="inline-block bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors duration-300 shadow-lg"
