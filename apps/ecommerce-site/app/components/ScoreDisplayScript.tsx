@@ -46,7 +46,8 @@ export default function ScoreDisplayScript({ siteKey = '' }: { siteKey?: string 
                   <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:10px;">
                     <div>
                       <p style="margin:0;font-size:11px;color:#6B7280;">reCAPTCHA</p>
-                      <p data-score-recaptcha style="margin:4px 0 0;font-size:22px;font-weight:700;color:#10B981;">-</p>
+                      <p style="margin:2px 0 0;font-size:10px;color:#9CA3AF;">(0.5以下の場合bot判定)</p>
+                      <p data-score-recaptcha style="margin:2px 0 0;font-size:22px;font-weight:700;color:#10B981;">-</p>
                     </div>
                     <div>
                       <p style="margin:0;font-size:11px;color:#6B7280;">ブラウザ操作＋指紋</p>
