@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAIDetector } from '@/app/components/AIDetectorProvider';
 import { useAuth } from '../lib/auth-provider';
 
-const OTM_REDIRECT_THRESHOLD = 0.5;
+const OTP_REDIRECT_THRESHOLD = 0.5;
 
 export default function NavigationHeader() {
   const { isLoggedIn, email, logout, userId } = useAuth();
@@ -96,14 +96,14 @@ export default function NavigationHeader() {
         ? (detectionScore as number)
         : storedScore;
 
-      const redirectToOtm =
+      const redirectToOtp =
         Number.isFinite(effectiveScore) &&
-        (effectiveScore as number) <= OTM_REDIRECT_THRESHOLD;
-      const target = redirectToOtm ? '/account/otm' : '/account';
+        (effectiveScore as number) <= OTP_REDIRECT_THRESHOLD;
+      const target = redirectToOtp ? '/account/otm' : '/account';
 
       try {
         if (typeof window !== 'undefined') {
-          if (redirectToOtm && Number.isFinite(effectiveScore)) {
+          if (redirectToOtp && Number.isFinite(effectiveScore)) {
             sessionStorage.setItem(
               'accountNavAiScore',
               JSON.stringify({ score: Number(effectiveScore), ts: Date.now() })
